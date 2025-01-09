@@ -26,7 +26,7 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 			const json = await request.json();
 			const parsedInput = inputSchema.parse(json);
 			const { Username, EmailAddress, Password } = parsedInput;
-			const passwordHash = hashSync('bacon', 8);
+			const passwordHash = hashSync(Password, 8);
 
 			//compareSync('password', hash);
 
