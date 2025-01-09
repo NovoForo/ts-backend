@@ -169,7 +169,7 @@ async function getCategories(request: Request, params: Record<string, string>, e
 		`
 	)
 	.all();
-		
+
 	return Response.json(results);
 }
 
@@ -344,8 +344,26 @@ interface User {
 }
 
 // Middleware Functions
-function isUserLoggedIn(request: Request): Boolean {
-	return true;
+async function isUserLoggedIn(request: Request): Promise<Boolean> {
+	const authorizationHeader = request.headers.get("authorization");
+	
+	if (authorizationHeader) {
+		const token = authorizationHeader?.startsWith("Bearer ") 
+		? authorizationHeader.slice(7).trim() 
+		: "";
+		try {
+			const isValidToken = await jwt.verify(token, JWT_SECRET);
+			if (isValidToken) {
+				return true;
+			} else {
+				return false;
+			}
+		} catch (error: any) {
+			return false;
+		}
+	} else {
+		return false;
+	}
 }
 
 function isUserAModerator(request: Request): Boolean {
@@ -354,6 +372,24 @@ function isUserAModerator(request: Request): Boolean {
 
 function isUserAnAdministrator(request: Request): Boolean {
 	return true;
+}
+
+async function getUserIdFromJwt(request: Request): Promise<String | null> {
+	const authorizationHeader = request.headers.get("authorization");
+	const token = authorizationHeader?.startsWith("Bearer ") 
+    ? authorizationHeader.slice(7).trim() 
+    : "";
+	const isValidToken = await jwt.verify(token, JWT_SECRET);
+	if (isValidToken) {
+		const { payload } = isValidToken
+		if (payload && payload.sub) {
+			return payload.sub;
+		} else {
+			return null;
+		}
+	} else {
+		return null;
+	}
 }
 
 // Router
