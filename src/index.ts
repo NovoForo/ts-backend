@@ -1,10 +1,70 @@
+import { z } from "zod";
+import jwt from "@tsndr/cloudflare-worker-jwt"
+import {
+	genSaltSync,
+	hashSync,
+	compareSync,
+	getRounds,
+	getSaltSync,
+  } from 'bcrypt-edge';
+
 // Functions
 function signIn(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
 }
 
-function signUp(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function signUp(request: Request, params: Record<string, string>, env: Env) {
+	const inputSchema = z.object({
+		Username: z.string(),
+		EmailAddress: z.string().email(),
+		Password: z.string().min(16),
+	})
+
+	const contentType = request.headers.get("content-type");
+	if (contentType && contentType.includes("application/json")) {
+		try {
+			const json = await request.json();
+			const parsedInput = inputSchema.parse(json);
+			const { Username, EmailAddress, Password } = parsedInput;
+			const passwordHash = hashSync('bacon', 8);
+
+			//compareSync('password', hash);
+
+			try {
+				const { results } = await env.DB.prepare(
+					
+					`
+					INSERT INTO Users
+						(Username,
+						PasswordHash,
+						EmailAddress,
+						CreatedAt)
+					VALUES (?, ?, ?, ?);
+					`
+				)
+				.bind(Username, passwordHash, EmailAddress, Date.now())
+				.all();
+
+				return new Response(JSON.stringify(results));
+			} catch (error: any) {
+				if (error.message.includes("UNIQUE constraint failed")) {
+					if (error.message.includes("Users.Username")) {
+						return new Response("Username already exists!", { status: 400 });
+					} else if (error.message.includes("Users.EmailAddress")) {
+						return new Response("Email address already exists!", { status: 400 });
+					}
+				}
+				return new Response("Database error occurred.", { status: 500 });
+			}
+		} catch (error) {
+			if (error instanceof z.ZodError) {
+				return new Response(JSON.stringify(error.errors), { status: 400 });
+			}
+			return new Response("Invalid JSON payload!", { status: 400 });
+		}
+	} else {
+		return new Response("Invalid content-type!");
+	}
 }
 
 function forgotPassword(request: Request, params: Record<string, string>, env: Env) {
@@ -230,13 +290,26 @@ interface User {
 	DisabledAt: Date | null,
 }
 
+// Middleware Functions
+function isUserLoggedIn(request: Request): Boolean {
+	return true;
+}
+
+function isUserAModerator(request: Request): Boolean {
+	return true;
+}
+
+function isUserAnAdministrator(request: Request): Boolean {
+	return true;
+}
+
 // Router
 type RouteHandler = (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>;
 const routes: Record<string, RouteHandler> = {	
 	// Account Actions
-	"GET /sign-in": (request, params = {}, env = {}) => signIn(request, params, env),
-	"GET /sign-up": (request, params = {}, env = {}) => signUp(request, params, env),
-	"GET /forgot-password": (request, params = {}, env = {}) => forgotPassword(request, params, env),
+	"POST /sign-in": (request, params = {}, env = {}) => signIn(request, params, env),
+	"POST /sign-up": (request, params = {}, env = {}) => signUp(request, params, env),
+	"POST /forgot-password": (request, params = {}, env = {}) => forgotPassword(request, params, env),
 	"POST /verify_credentials": (request, params = {}, env = {}) => verifyCredentials(request, params, env),
 	"PATCH /account": (request, params = {}, env = {}) => updateAccount(request, params, env),
 
