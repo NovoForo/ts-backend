@@ -1,0 +1,56 @@
+CREATE TABLE Categories (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL,
+    Description TEXT,
+    SortOrder INTEGER NOT NULL,
+    CreatedAt DATETIME NOT NULL,
+    UpdatedAt DATETIME,
+    DeletedAt DATETIME
+);
+
+CREATE TABLE Forums (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL,
+    Description TEXT,
+    SortOrder INTEGER NOT NULL,
+    CategoryId INTEGER NOT NULL,
+    CreatedAt DATETIME NOT NULL,
+    UpdatedAt DATETIME,
+    DeletedAt DATETIME,
+    FOREIGN KEY (CategoryId) REFERENCES Categories(Id) ON DELETE CASCADE
+);
+
+CREATE TABLE Topics (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Title TEXT NOT NULL,
+    Description TEXT,
+    ForumId INTEGER NOT NULL,
+    CreatedAt DATETIME NOT NULL,
+    UpdatedAt DATETIME,
+    DeletedAt DATETIME,
+    FOREIGN KEY (ForumId) REFERENCES Forums(Id) ON DELETE CASCADE
+);
+
+CREATE TABLE Posts (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Title TEXT NOT NULL,
+    Content TEXT NOT NULL,
+    TopicId INTEGER NOT NULL,
+    UserId INTEGER NOT NULL,
+    CreatedAt DATETIME NOT NULL,
+    UpdatedAt DATETIME,
+    DeletedAt DATETIME,
+    FOREIGN KEY (TopicId) REFERENCES Topics(Id) ON DELETE CASCADE,
+    FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE SET NULL
+);
+
+CREATE TABLE Users (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Username TEXT NOT NULL UNIQUE,
+    PasswordHash TEXT NOT NULL,
+    EmailAddress TEXT NOT NULL UNIQUE,
+    CreatedAt DATETIME NOT NULL,
+    UpdatedAt DATETIME,
+    DeletedAt DATETIME,
+    DisabledAt DATETIME
+);

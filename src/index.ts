@@ -1,18 +1,204 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.toml`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+// Functions
+function signIn(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function signUp(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function forgotPassword(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function updateAccount(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+async function getCategories(request: Request, params: Record<string, string>, env: Env) {
+	const { results } = await env.DB.prepare(
+		"SELECT * FROM Categories;"
+	)
+	.all();
+	
+	return Response.json(results);
+}
+
+function getCategoryById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function getTopicById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function replyToTopicById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function createTopicByForumId(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function updatePostById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function deletePostById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function createCategory(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function createForum(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+function deleteCategoryById(request: Request, params: Record<string, string>, env: Env) {
+	return new Response("Not implemented!", { status: 501 });
+}
+
+// Types
+interface Category {
+	Id: Number,
+	Name: String,
+	Description: String,
+	SortOrder: Number,
+	Forums: Forum[],
+	CreatedAt: Date,
+	UpdatedAt: Date | null,
+	DeletedAt: Date | null,
+}
+
+interface Forum {
+	Id: Number,
+	Name: String,
+	Description: String,
+	SortOrder: Number
+	CategoryId: Number,
+	Topics: Topic[],
+	CreatedAt: Date,
+	UpdatedAt: Date | null,
+	DeletedAt: Date | null,
+}
+
+interface Topic {
+	Id: Number,
+	Title: String,
+	Description: String
+	ForumId: Number,
+	Posts: Post[],
+	CreatedAt: Date,
+	UpdatedAt: Date | null,
+	DeletedAt: Date | null,
+}
+
+interface Post {
+	Id: Number,
+	Title: String,
+	Content: String,
+	TopicId: Number,
+	UserId: Number,
+	CreatedAt: Date,
+	UpdatedAt: Date | null,
+	DeletedAt: Date | null,
+}
+
+interface User {
+	Id: Number,
+	Username: String,
+	PasswordHash: String,
+	EmailAddress: String,
+	CreatedAt: Date,
+	UpdatedAt: Date | null,
+	DeletedAt: Date | null,
+	DisabledAt: Date | null,
+}
+
+// Router
+type RouteHandler = (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>;
+const routes: Record<string, RouteHandler> = {	
+	// Account Actions
+	"GET /sign-in": (request, params = {}, env = {}) => signIn(request, params, env),
+	"GET /sign-up": (request, params = {}, env = {}) => signUp(request, params, env),
+	"GET /forgot-password": (request, params = {}, env = {}) => forgotPassword(request, params, env),
+	"POST /verify_credentials": (request, params = {}, env = {}) => verifyCredentials(request, params, env),
+	"PATCH /account": (request, params = {}, env = {}) => updateAccount(request, params, env),
+
+	// Public Actions
+	"GET /categories": (request, params = {}, env = {}) => getCategories(request, params, env),
+	"GET /categories/:categoryId": (request, params = {}, env = {}) => getCategoryById(request, params, env),
+	"GET /categories/:categoryId/forums/:forumId": (request, params = {}, env = {}) => getTopicsByForumId(request, params, env),
+	"GET /categories/:categoryId/forums/:forumId/topics/:topicId": (request, params = {}, env = {}) => getTopicById(request, params, env),
+
+	// Authenticated Actions
+	"POST /categories/:categoryID/forums/:forumID/topics/:topicId": (request, params = {}, env = {}) => replyToTopicById(request, params, env),
+	"GET /categories/:categoryID/forums/:forumID/topics": (request, params = {}, env = {}) => createTopicByForumId(request, params, env),
+	"PATCH /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => updatePostById(request, params, env),
+	"DELETE /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => deletePostById(request, params, env),
+
+	// Admin Actions
+	"POST /a/categories": (request, params = {}, env = {}) => createCategory(request, params, env),
+	"POST /a/categories/:categoryId": (request, params = {}, env = {}) => createForum(request, params, env),
+	"PATCH /a/categories/:categoryId": (request, params = {}, env = {}) => updateCategoryById(request, params, env),
+	"DELETE /a/categories/:categoryId": (request, params = {}, env = {}) => deleteCategoryById(request, params, env),
+
+}
+
+function handleRequest(request: Request, env: Env): Promise<Response> {
+	const { method, url } = request;
+	const pathName = new URL(url).pathname;
+
+	for (const routeKey of Object.keys(routes)) {
+		const [routeMethod, routePath] = routeKey.split(" ");
+		if (method === routeMethod) {
+			const { isMatch, params } = matchRoute(routePath, pathName);
+			if (isMatch) {
+				return Promise.resolve(routes[routeKey](request, params, env));
+			}
+		}
+	}
+
+	return Promise.resolve(new Response("Not Found", { status: 404 }));
+}
+
+function matchRoute(routePath: string, actualPath: string): { isMatch: boolean; params: Record<string, string> } {
+	const routeParts = routePath.split("/");
+	const actualParts = actualPath.split("/");
+
+	if (routeParts.length !== actualParts.length) {
+		return { isMatch: false, params: {} };
+	}
+
+	const params: Record<string, string> = {};
+	for (let i = 0; i < routeParts.length; i++) {
+		if (routeParts[i].startsWith(":")) {
+			const paramName = routeParts[i].slice(1);
+			params[paramName] = actualParts[i];
+		} else if (routeParts[i] !== actualParts[i]) {
+			return { isMatch: false, params: {} };
+		}
+	}
+
+	return { isMatch: true, params };
+}
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		return new Response('Hello World!');
+		return handleRequest(request, env);
 	},
 } satisfies ExportedHandler<Env>;
