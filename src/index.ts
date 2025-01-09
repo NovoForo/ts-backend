@@ -7,10 +7,63 @@ import {
 	getRounds,
 	getSaltSync,
   } from 'bcrypt-edge';
+const JWT_SECRET = "changemechangemechangeme";
 
 // Functions
-function signIn(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function signIn(request: Request, params: Record<string, string>, env: Env) {
+    const inputSchema = z.object({
+        EmailAddress: z.string().email(),
+        Password: z.string(),
+    });
+
+    const contentType = request.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+        try {
+            const json = await request.json();
+            const parsedInput = inputSchema.parse(json);
+            const { EmailAddress, Password } = parsedInput;
+
+            try {
+                // Query the database for the user
+                const { results } = await env.DB.prepare(
+                    `
+                    SELECT * FROM Users
+                    WHERE EmailAddress = ?
+                    `
+                )
+                .bind(EmailAddress)
+                .all();
+
+                if (results.length === 0) {
+                    return new Response("User not found.", { status: 404 });
+                }
+
+				const user: any = results[0]; // TODO: Fix use of any type
+
+				const passwordMatch = await compareSync(Password, user.PasswordHash);
+                if (!passwordMatch) {
+                    return new Response("Invalid credentials.", { status: 401 });
+                } else {
+					const token = await jwt.sign({
+						sub: user.Id,
+						nbf: Math.floor(Date.now() / 1000), 
+						exp: Math.floor(Date.now() / 1000) + (2 * (60 * 60))
+					}, JWT_SECRET)
+					return new Response(token, { status: 200 });
+				}
+            } catch (error: any) {
+                console.error("Database error:", error.message);
+                return new Response("An error occurred while querying the database.", { status: 500 });
+            }
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                return new Response(JSON.stringify(error.errors), { status: 400 });
+            }
+            return new Response("Invalid JSON payload!", { status: 400 });
+        }
+    } else {
+        return new Response("Invalid content-type!", { status: 400 });
+    }
 }
 
 async function signUp(request: Request, params: Record<string, string>, env: Env) {
@@ -18,7 +71,7 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 		Username: z.string(),
 		EmailAddress: z.string().email(),
 		Password: z.string().min(16),
-	})
+	});
 
 	const contentType = request.headers.get("content-type");
 	if (contentType && contentType.includes("application/json")) {
