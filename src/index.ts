@@ -81,8 +81,6 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 			const { Username, EmailAddress, Password } = parsedInput;
 			const passwordHash = hashSync(Password, 8);
 
-			//compareSync('password', hash);
-
 			try {
 				const { results } = await env.DB.prepare(
 					
@@ -156,7 +154,7 @@ async function getCategories(request: Request, params: Record<string, string>, e
 					)
 				), 
 				'[]'
-			) AS forums
+			) AS Forums
 		FROM 
 			Categories c
 		LEFT JOIN 
@@ -170,7 +168,14 @@ async function getCategories(request: Request, params: Record<string, string>, e
 	)
 	.all();
 
-	return Response.json(results);
+    const categories = results.map((row: any) => ({
+        ...row,
+        Forums: JSON.parse(row.Forums),
+    }));
+
+	return Response.json({
+		Categories: categories,
+	});
 }
 
 async function getCategoryById(request: Request, params: Record<string, string>, env: Env) {
@@ -197,7 +202,7 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 					)
 				), 
 				'[]'
-			) AS forums
+			) AS Forums
 		FROM 
 			Categories c
 		LEFT JOIN 
@@ -213,8 +218,15 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 	)
 	.bind(params["categoryId"])
 	.all();
+
+    const categories = results.map((row: any) => ({
+        ...row,
+        Forums: JSON.parse(row.Forums),
+    }));
 		
-	return Response.json(results);
+	return Response.json({
+		Categories: categories,
+	});
 }
 
 async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
@@ -250,8 +262,55 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
 	return Response.json(results);
 }
 
-function getTopicById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
+	const { results } = await env.DB.prepare(
+		`
+		SELECT 
+			p.Id AS PostId,
+			p.Title AS PostTitle,
+			p.Content AS PostContent,
+			t.Id AS TopicId,
+			t.Title AS TopicTitle,
+			t.Description AS TopicDescription,
+			u.Id AS UserId,
+			u.Username AS UserName,
+			u.EmailAddress AS UserEmail
+		FROM 
+			Posts p
+		LEFT JOIN 
+			Topics t ON p.TopicId = t.Id
+		LEFT JOIN
+			Users u ON p.UserId = u.Id
+		WHERE
+			p.Id = ?
+		GROUP BY 
+			p.Id
+		`
+	)
+	.bind(params["topicId"])
+	.all();
+
+	const posts = results.map((row: any) => ({
+		Id: row.PostId,
+		Title: row.PostTitle,
+		Content: row.PostContent,
+		Topic: {
+			Id: row.TopicId,
+			Title: row.TopicTitle,
+			Description: row.TopicDescription,
+		},
+		User: {
+			Id: row.UserId,
+			Username: row.UserName,
+			Email: row.UserEmail,
+			IsAdministrator: false,
+			IsModerator: false,
+		},
+	}));
+
+	return Response.json({
+		posts: posts
+	});
 }
 
 function replyToTopicById(request: Request, params: Record<string, string>, env: Env) {
