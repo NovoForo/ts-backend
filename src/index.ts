@@ -312,7 +312,7 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 		LEFT JOIN
 			Users u ON p.UserId = u.Id
 		WHERE
-			p.Id = ?
+			p.TopicId = ?
 		GROUP BY 
 			p.Id
 		`
@@ -343,8 +343,185 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 	});
 }
 
-function replyToTopicById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function replyToTopicById(request: Request, params: Record<string, string>, env: Env): Promise<Response> {
+    if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized. Please log in to reply.", { status: 401 });
+    }
+
+    const userIdStr = await getUserIdFromJwt(request);
+    if (!userIdStr) {
+        return new Response("Invalid token. Unable to identify user.", { status: 400 });
+    }
+
+    const userId = parseInt(userIdStr, 10);
+    if (isNaN(userId)) {
+        return new Response("Invalid user ID in token.", { status: 400 });
+    }
+
+    const categoryIdStr = params["categoryID"] || params["categoryId"] || params["categoryid"];
+    const forumIdStr = params["forumID"] || params["forumId"] || params["forumid"];
+    const topicIdStr = params["topicId"] || params["topicid"];
+
+    if (!categoryIdStr || !forumIdStr || !topicIdStr) {
+        return new Response("Missing categoryID, forumID, or topicId in the URL.", { status: 400 });
+    }
+
+    const categoryId = parseInt(categoryIdStr, 10);
+    const forumId = parseInt(forumIdStr, 10);
+    const topicId = parseInt(topicIdStr, 10);
+
+    if (isNaN(categoryId) || isNaN(forumId) || isNaN(topicId)) {
+        return new Response("Invalid categoryID, forumID, or topicId.", { status: 400 });
+    }
+
+    try {
+        const { results: topicResults } = await env.DB.prepare(`
+            SELECT t.Id
+            FROM Topics t
+            WHERE t.Id = ? AND t.ForumId = ?
+        `)
+            .bind(topicId, forumId)
+            .all();
+
+        console.log("Topic Results:", topicResults);
+
+        if (topicResults.length === 0) {
+            return new Response("Topic not found in the specified forum.", { status: 404 });
+        }
+    } catch (error: any) {
+        console.error("Database error while verifying topic:", error);
+        return new Response("An error occurred while verifying the topic.", { status: 500 });
+    }
+
+    try {
+        const { results: forumResults } = await env.DB.prepare(`
+            SELECT f.Id
+            FROM Forums f
+            WHERE f.Id = ? AND f.CategoryId = ?
+        `)
+            .bind(forumId, categoryId)
+            .all();
+
+        console.log("Forum Results:", forumResults);
+
+        if (forumResults.length === 0) {
+            return new Response("Forum not found in the specified category.", { status: 404 });
+        }
+    } catch (error: any) {
+        console.error("Database error while verifying forum:", error);
+        return new Response("An error occurred while verifying the forum.", { status: 500 });
+    }
+
+    const inputSchema = z.object({
+        content: z.string().min(1, "Content is required."),
+    });
+
+    const contentType = request.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        return new Response("Invalid content-type! Expected application/json.", { status: 400 });
+    }
+
+    let parsedInput;
+    try {
+        const json = await request.json();
+        parsedInput = inputSchema.parse(json);
+    } catch (error: any) {
+        if (error instanceof z.ZodError) {
+            return new Response(JSON.stringify(error.errors), { status: 400 });
+        }
+        return new Response("Invalid JSON payload!", { status: 400 });
+    }
+
+    const { content } = parsedInput;
+
+    const title = content.length > 20 ? content.substring(0, 20) + '...' : content;
+
+    try {
+        const now = Math.floor(Date.now() / 1000);
+
+        const insertPostResult = await env.DB.prepare(`
+            INSERT INTO Posts
+                (Title, Content, TopicId, UserId, CreatedAt)
+            VALUES
+                (?, ?, ?, ?, ?);
+        `)
+            .bind(title, content, topicId, userId, now)
+            .run();
+
+        console.log("Insert Post Result:", insertPostResult);
+
+        const postIdResult = await env.DB.prepare(`
+            SELECT Id FROM Posts
+            WHERE TopicId = ? AND UserId = ? AND CreatedAt = ?
+            ORDER BY CreatedAt DESC
+            LIMIT 1;
+        `)
+            .bind(topicId, userId, now)
+            .first();
+
+        console.log("Post ID Result:", postIdResult);
+
+        if (!postIdResult || !postIdResult.Id) {
+            await env.DB.prepare(`
+                DELETE FROM Topics
+                WHERE Id = ?;
+            `)
+                .bind(topicId)
+                .run();
+
+            return new Response("Failed to retrieve the newly created post ID. Topic has been rolled back.", { status: 500 });
+        }
+
+        const newPostId = postIdResult.Id;
+        console.log("New Post ID:", newPostId);
+
+        const { results: newPostResults } = await env.DB.prepare(`
+            SELECT 
+                p.Id AS PostId,
+                p.Content AS PostContent,
+                p.TopicId,
+                p.UserId,
+                p.CreatedAt,
+                u.Username AS UserName,
+                u.EmailAddress AS UserEmail
+            FROM 
+                Posts p
+            LEFT JOIN 
+                Users u ON p.UserId = u.Id
+            WHERE 
+                p.Id = ?
+        `)
+            .bind(newPostId)
+            .all();
+
+        console.log("New Post Results:", newPostResults);
+
+        if (newPostResults.length === 0) {
+            throw new Error("Newly created post not found.");
+        }
+
+        const newPost = newPostResults[0];
+
+        return new Response(JSON.stringify({
+            success: true,
+            post: {
+                Id: newPost.PostId,
+                Content: newPost.PostContent,
+                TopicId: newPost.TopicId,
+                User: {
+                    Id: newPost.UserId,
+                    Username: newPost.UserName,
+                    Email: newPost.UserEmail,
+                },
+                CreatedAt: new Date(newPost.CreatedAt * 1000).toISOString(),
+            },
+            message: "Reply posted successfully.",
+        }), { status: 201, headers: { "Content-Type": "application/json" } });
+
+    } catch (error: any) {
+        console.error("Database error while creating post:", error.message);
+        return new Response("An error occurred while creating the reply.", { status: 500 });
+    }
 }
 
 async function createTopicByForumId(
