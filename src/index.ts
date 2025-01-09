@@ -24,7 +24,6 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
             const { email, password } = parsedInput;
 
             try {
-                // Query the database for the user
                 const { results } = await env.DB.prepare(
                     `
                     SELECT * FROM Users
@@ -49,7 +48,16 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 						nbf: Math.floor(Date.now() / 1000), 
 						exp: Math.floor(Date.now() / 1000) + (2 * (60 * 60))
 					}, JWT_SECRET)
-					return Response.json({token: token}, { status: 200 });
+					return Response.json({
+						user: {
+							name: user.username,
+							email: user.email,
+							image: ''
+						},
+						token: token,
+						isAdministrator: user.IsAdministrator,
+						isModerator: user.IsModerator
+					}, { status: 200 });
 				}
             } catch (error: any) {
 				console.log(error);
@@ -304,7 +312,9 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 			t.Description AS TopicDescription,
 			u.Id AS UserId,
 			u.Username AS UserName,
-			u.EmailAddress AS UserEmail
+			u.EmailAddress AS UserEmail,
+			u.IsAdministrator AS UserIsAdministrator,
+			u.IsModerator AS UserIsModerator
 		FROM 
 			Posts p
 		LEFT JOIN 
@@ -333,8 +343,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 			Id: row.UserId,
 			Username: row.UserName,
 			Email: row.UserEmail,
-			IsAdministrator: false,
-			IsModerator: false,
+			IsAdministrator: row.UserIsAdministrator,
+			IsModerator: row.UserIsModerator,
 		},
 	}));
 
@@ -670,8 +680,147 @@ async function createTopicByForumId(
     }
 }
 
-function updatePostById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function updatePostById(
+    request: Request,
+    params: Record<string, string>,
+    env: Env
+): Promise<Response> {
+    if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized. Please log in to update the post.", { status: 401 });
+    }
+
+    const userIdStr = await getUserIdFromJwt(request);
+    if (!userIdStr) {
+        return new Response("Invalid token. Unable to identify user.", { status: 400 });
+    }
+
+    const userId = parseInt(userIdStr, 10);
+    if (isNaN(userId)) {
+        return new Response("Invalid user ID in token.", { status: 400 });
+    }
+
+    // 3. Parse and validate postId from URL parameters
+    const postIdStr = params["postId"] || params["postid"] || params["postID"];
+    if (!postIdStr) {
+        return new Response("Missing postId in the URL.", { status: 400 });
+    }
+
+    const postId = parseInt(postIdStr, 10);
+    if (isNaN(postId)) {
+        return new Response("Invalid postId.", { status: 400 });
+    }
+
+    try {
+        // 4. Verify that the post exists and belongs to the user
+        const { results: postResults } = await env.DB.prepare(`
+            SELECT p.Id, p.Content, p.UserId, p.TopicId, p.CreatedAt, p.UpdatedAt
+            FROM Posts p
+            WHERE p.Id = ?
+        `)
+            .bind(postId)
+            .all();
+
+        console.log("Post Results:", postResults);
+
+        if (postResults.length === 0) {
+            return new Response("Post not found.", { status: 404 });
+        }
+
+        const post = postResults[0];
+
+        if (post.UserId !== userId) {
+            return new Response("Forbidden. You can only update your own posts.", { status: 403 });
+        }
+
+        // 5. Validate the input JSON payload
+        const inputSchema = z.object({
+            content: z.string().min(1, "Content is required."),
+        });
+
+        const contentType = request.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            return new Response("Invalid content-type! Expected application/json.", { status: 400 });
+        }
+
+        let parsedInput;
+        try {
+            const json = await request.json();
+            parsedInput = inputSchema.parse(json);
+        } catch (error: any) {
+            if (error instanceof z.ZodError) {
+                return new Response(JSON.stringify(error.errors), { status: 400, headers: { "Content-Type": "application/json" } });
+            }
+            return new Response("Invalid JSON payload!", { status: 400 });
+        }
+
+        const { content } = parsedInput;
+
+        const title = content.length > 20 ? content.substring(0, 20) + '...' : content;
+
+        const updatedAt = Math.floor(Date.now() / 1000);
+
+        const updateResult = await env.DB.prepare(`
+            UPDATE Posts
+            SET Content = ?, Title = ?, UpdatedAt = ?
+            WHERE Id = ?;
+        `)
+            .bind(content, title, updatedAt, postId)
+            .run();
+
+        console.log("Update Result:", updateResult);
+
+        const { results: updatedPostResults } = await env.DB.prepare(`
+            SELECT 
+                p.Id AS PostId,
+                p.Content AS PostContent,
+                p.TopicId,
+                p.UserId,
+                p.CreatedAt,
+                p.UpdatedAt,
+                u.Username AS UserName,
+                u.EmailAddress AS UserEmail
+            FROM 
+                Posts p
+            LEFT JOIN 
+                Users u ON p.UserId = u.Id
+            WHERE 
+                p.Id = ?
+        `)
+            .bind(postId)
+            .all();
+
+        console.log("Updated Post Results:", updatedPostResults);
+
+        if (updatedPostResults.length === 0) {
+            return new Response("Failed to retrieve the updated post.", { status: 500 });
+        }
+
+        const updatedPost = updatedPostResults[0];
+
+        return new Response(JSON.stringify({
+            success: true,
+            post: {
+                Id: updatedPost.PostId,
+                Content: updatedPost.PostContent,
+                TopicId: updatedPost.TopicId,
+                User: {
+                    Id: updatedPost.UserId,
+                    Username: updatedPost.UserName,
+                    Email: updatedPost.UserEmail,
+                },
+                CreatedAt: new Date(updatedPost.CreatedAt * 1000).toISOString(),
+                UpdatedAt: new Date(updatedPost.UpdatedAt * 1000).toISOString(),
+            },
+            message: "Post updated successfully.",
+        }), { 
+            status: 200, 
+            headers: { "Content-Type": "application/json" } 
+        });
+
+    } catch (error: any) {
+        console.error("Database error while updating post:", error);
+        return new Response("An error occurred while updating the post.", { status: 500 });
+    }
 }
 
 async function deletePostById(request: Request, params: Record<string, string>, env: Env) {
@@ -798,6 +947,8 @@ interface User {
 	Username: String,
 	PasswordHash: String,
 	EmailAddress: String,
+	IsModerator: Boolean,
+	IsAdministrator: Boolean,
 	CreatedAt: Date,
 	UpdatedAt: Date | null,
 	DeletedAt: Date | null,
