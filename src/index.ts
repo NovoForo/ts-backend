@@ -317,12 +317,18 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
     const forumId = params["forumId"];
     
+	const queryParams = getQueryParams(request.url);
+	const skip = queryParams["skip"] || 0;
+	const limit = queryParams["limit"] || 10;
+
     const { results } = await env.DB.prepare(
         `
         SELECT 
             t.Id AS TopicId,
             t.Title AS TopicTitle,
             t.CreatedAt AS TopicCreatedAt,
+			MAX(p.CreatedAt) AS LatestPostDate,
+			COUNT(*) OVER() AS TotalCount,
             COALESCE(
                 json_group_array(
                     json_object(
@@ -348,11 +354,11 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
             t.ForumId = ?
         GROUP BY 
             t.Id
-        LIMIT
-            1000;
+		ORDER BY LatestPostDate DESC NULLS LAST
+        LIMIT ? OFFSET ?
         `
     )
-    .bind(forumId)
+    .bind(forumId, limit, skip)
     .all();
 
     const topics = results.map(topic => {
@@ -379,6 +385,10 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
 }
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
+	const queryParams = getQueryParams(request.url);
+	const skip = queryParams["skip"] || 0;
+	const limit = queryParams["limit"] || 10;
+
 	const { results } = await env.DB.prepare(
 		`
 		SELECT 
@@ -392,7 +402,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 			u.Username AS UserName,
 			u.EmailAddress AS UserEmail,
 			u.IsAdministrator AS UserIsAdministrator,
-			u.IsModerator AS UserIsModerator
+			u.IsModerator AS UserIsModerator,
+			COUNT(*) OVER() AS TotalCount
 		FROM 
 			Posts p
 		LEFT JOIN 
@@ -403,9 +414,10 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 			p.TopicId = ?
 		GROUP BY 
 			p.Id
+		LIMIT ? OFFSET ?
 		`
 	)
-	.bind(params["topicId"])
+	.bind(params["topicId"], limit, skip)
 	.all();
 
 	const posts = results.map((row: any) => ({
@@ -808,7 +820,6 @@ async function updatePostById(
             return new Response("Forbidden. You can only update your own posts.", { status: 403 });
         }
 
-        // 5. Validate the input JSON payload
         const inputSchema = z.object({
             content: z.string().min(1, "Content is required."),
         });
@@ -970,6 +981,19 @@ function updateCategoryById(request: Request, params: Record<string, string>, en
 
 function deleteCategoryById(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
+}
+
+// Helper Functions
+function getQueryParams(url: string): Record<string, string> {
+    const parsedUrl = new URL(url);
+    
+    const queryParams: Record<string, string> = {};
+    
+    parsedUrl.searchParams.forEach((value, key) => {
+        queryParams[key] = value;
+    });
+    
+    return queryParams;
 }
 
 // Types
