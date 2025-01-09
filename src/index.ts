@@ -12,8 +12,8 @@ const JWT_SECRET = "changemechangemechangeme";
 // Functions
 async function signIn(request: Request, params: Record<string, string>, env: Env) {
     const inputSchema = z.object({
-        EmailAddress: z.string().email(),
-        Password: z.string(),
+        email: z.string().email(),
+        password: z.string(),
     });
 
     const contentType = request.headers.get("content-type");
@@ -21,7 +21,7 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
         try {
             const json = await request.json();
             const parsedInput = inputSchema.parse(json);
-            const { EmailAddress, Password } = parsedInput;
+            const { email, password } = parsedInput;
 
             try {
                 // Query the database for the user
@@ -31,7 +31,7 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
                     WHERE EmailAddress = ?
                     `
                 )
-                .bind(EmailAddress)
+                .bind(email)
                 .all();
 
                 if (results.length === 0) {
@@ -40,7 +40,7 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 
 				const user: any = results[0]; // TODO: Fix use of any type
 
-				const passwordMatch = await compareSync(Password, user.PasswordHash);
+				const passwordMatch = await compareSync(password, user.PasswordHash);
                 if (!passwordMatch) {
                     return new Response("Invalid credentials.", { status: 401 });
                 } else {
@@ -49,10 +49,10 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 						nbf: Math.floor(Date.now() / 1000), 
 						exp: Math.floor(Date.now() / 1000) + (2 * (60 * 60))
 					}, JWT_SECRET)
-					return new Response(token, { status: 200 });
+					return Response.json({token: token}, { status: 200 });
 				}
             } catch (error: any) {
-                console.error("Database error:", error.message);
+				console.log(error);
                 return new Response("An error occurred while querying the database.", { status: 500 });
             }
         } catch (error) {
@@ -317,8 +317,150 @@ function replyToTopicById(request: Request, params: Record<string, string>, env:
 	return new Response("Not implemented!", { status: 501 });
 }
 
-function createTopicByForumId(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function createTopicByForumId(
+    request: Request,
+    params: Record<string, string>,
+    env: Env
+): Promise<Response> {
+    if (!(await isUserLoggedIn(request))) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    const contentType = request.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        return new Response("Invalid content-type! Expected application/json.", { status: 400 });
+    }
+
+    let jsonData: any;
+    try {
+        jsonData = await request.json();
+    } catch (error) {
+        return new Response("Invalid JSON payload!", { status: 400 });
+    }
+
+    const topicSchema = z.object({
+        title: z.string().min(1, "Title is required."),
+        description: z.string().optional(),
+        content: z.string().min(1, "Content is required."),
+    });
+
+    let parsedData;
+    try {
+        parsedData = topicSchema.parse(jsonData);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return new Response(JSON.stringify(error.errors), { status: 400 });
+        }
+        return new Response("Failed to validate topic data!", { status: 400 });
+    }
+
+    const forumIdStr = params["forumID"] || params["forumId"] || params["forumid"];
+    const forumId = parseInt(forumIdStr, 10);
+    if (Number.isNaN(forumId)) {
+        return new Response("Invalid forum ID!", { status: 400 });
+    }
+
+    const userId = await getUserIdFromJwt(request);
+    if (!userId) {
+        return new Response("Could not determine user ID from token!", { status: 400 });
+    }
+
+    try {
+        const now = Date.now();
+
+        const insertTopicResult = await env.DB.prepare(
+            `
+            INSERT INTO Topics
+                (Title, Description, ForumId, CreatedAt)
+            VALUES 
+                (?, ?, ?, ?);
+            `
+        )
+        .bind(parsedData.title, parsedData.description ?? null, forumId, now)
+        .run();
+
+        const topicIdResult = await env.DB.prepare(
+            `
+            SELECT Id FROM Topics
+            WHERE Title = ? AND ForumId = ?
+            ORDER BY CreatedAt DESC
+            LIMIT 1;
+            `
+        )
+        .bind(parsedData.title, forumId)
+        .first();
+
+        if (!topicIdResult || !topicIdResult.Id) {
+            return new Response("Failed to retrieve the newly created topic ID.", { status: 500 });
+        }
+
+        const newTopicId = topicIdResult.Id;
+
+        const postTitle = `Reply to: ${parsedData.title}`;
+
+        const insertPostResult = await env.DB.prepare(
+            `
+            INSERT INTO Posts
+                (Title, Content, TopicId, UserId, CreatedAt)
+            VALUES 
+                (?, ?, ?, ?, ?);
+            `
+        )
+        .bind(postTitle, parsedData.content, newTopicId, userId, now)
+        .run();
+
+        const postIdResult = await env.DB.prepare(
+            `
+            SELECT Id FROM Posts
+            WHERE TopicId = ? AND UserId = ? AND CreatedAt = ?
+            ORDER BY CreatedAt DESC
+            LIMIT 1;
+            `
+        )
+        .bind(newTopicId, userId, now)
+        .first();
+
+        if (!postIdResult || !postIdResult.Id) {
+            await env.DB.prepare(
+                `
+                DELETE FROM Topics
+                WHERE Id = ?;
+                `
+            )
+            .bind(newTopicId)
+            .run();
+
+            return new Response("Failed to retrieve the newly created post ID. Topic has been rolled back.", { status: 500 });
+        }
+
+        const newPostId = postIdResult.Id;
+
+        return Response.json({
+            success: true,
+            Topic: {
+                Id: newTopicId,
+                Title: parsedData.title,
+                Description: parsedData.description ?? "",
+                ForumId: forumId,
+                CreatedAt: new Date(now).toISOString(),
+                UserId: userId,
+            },
+            Post: {
+                Id: newPostId,
+                Title: postTitle,
+                Content: parsedData.content,
+                TopicId: newTopicId,
+                UserId: userId,
+                CreatedAt: new Date(now).toISOString(),
+            },
+            message: "Topic and initial post created successfully.",
+        }, { status: 201 });
+    } catch (error: any) {
+        console.error("Database error:", error.message);
+        return new Response("An error occurred while creating the topic and post.", {
+            status: 500,
+        });
+    }
 }
 
 function updatePostById(request: Request, params: Record<string, string>, env: Env) {
@@ -327,10 +469,8 @@ function updatePostById(request: Request, params: Record<string, string>, env: E
 
 async function deletePostById(request: Request, params: Record<string, string>, env: Env) {
 	if (await isUserLoggedIn(request)) {
-		// Retrieve the user ID from the request (assumes a function like `getUserIdFromRequest` exists).
 		const userId = await getUserIdFromJwt(request);
 
-		// First, check if the post exists and is owned by the user.
 		const postCheck = await env.DB.prepare(
 			`
 			SELECT TopicId
@@ -342,13 +482,11 @@ async function deletePostById(request: Request, params: Record<string, string>, 
 		.first();
 
 		if (!postCheck) {
-			// Post does not exist or user is not authorized.
 			return Response.json({ success: false, message: "You are not authorized to delete this post or it doesn't exist." }, { status: 403 });
 		}
 
 		const topicId = postCheck.TopicId;
 
-		// Delete the post.
 		await env.DB.prepare(
 			`
 			DELETE FROM Posts
@@ -358,7 +496,6 @@ async function deletePostById(request: Request, params: Record<string, string>, 
 		.bind(params["postId"])
 		.run();
 
-		// Check if there are any other posts in the same topic.
 		const otherPosts = await env.DB.prepare(
 			`
 			SELECT 1
@@ -371,7 +508,6 @@ async function deletePostById(request: Request, params: Record<string, string>, 
 		.first();
 
 		if (!otherPosts) {
-			// No other posts in the topic; delete the topic.
 			await env.DB.prepare(
 				`
 				DELETE FROM Topics
@@ -382,7 +518,6 @@ async function deletePostById(request: Request, params: Record<string, string>, 
 			.run();
 		}
 
-		// Respond with success.
 		return Response.json({ success: true, message: "Post (and topic, if applicable) deleted successfully." });
 	} else {
 		return Response.json({ success: false, message: "User not logged in." }, { status: 401 });
@@ -555,10 +690,10 @@ const routes: Record<string, RouteHandler> = {
 	"GET /categories/:categoryId/forums/:forumId/topics/:topicId": (request, params = {}, env = {}) => getTopicById(request, params, env),
 
 	// Authenticated Actions
-	"POST /categories/:categoryID/forums/:forumID/topics/:topicId": (request, params = {}, env = {}) => replyToTopicById(request, params, env),
-	"GET /categories/:categoryID/forums/:forumID/topics": (request, params = {}, env = {}) => createTopicByForumId(request, params, env),
-	"PATCH /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => updatePostById(request, params, env),
-	"DELETE /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => deletePostById(request, params, env),
+	"POST /s/categories/:categoryID/forums/:forumID/topics/:topicId": (request, params = {}, env = {}) => replyToTopicById(request, params, env),
+	"POST /s/categories/:categoryID/forums/:forumID/topics": (request, params = {}, env = {}) => createTopicByForumId(request, params, env),
+	"PATCH /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => updatePostById(request, params, env),
+	"DELETE /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => deletePostById(request, params, env),
 
 	// Admin Actions
 	"POST /a/categories": (request, params = {}, env = {}) => createCategory(request, params, env),
