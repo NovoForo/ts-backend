@@ -228,38 +228,68 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 		Categories: categories,
 	});
 }
-
 async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
-	const { results } = await env.DB.prepare(
-		`
-		SELECT 
-			t.Id,
-			COALESCE(
-				json_group_array(
-					json_object(
-						'Id', p.Id
-					)
-				), 
-				'[]'
-			) AS posts
-		FROM 
-			Topics t
-		LEFT JOIN 
-			Posts p
-		ON 
-			t.Id = p.TopicId
-		WHERE
-			t.ForumId = ?
-		GROUP BY 
-			t.Id
-		LIMIT
-			1000;
-		`
-	)
-	.bind(params["forumId"])
-	.all();
-		
-	return Response.json(results);
+    const forumId = params["forumId"];
+    
+    const { results } = await env.DB.prepare(
+        `
+        SELECT 
+            t.Id AS TopicId,
+            t.Title AS TopicTitle,
+            t.CreatedAt AS TopicCreatedAt,
+            COALESCE(
+                json_group_array(
+                    json_object(
+                        'Id', p.Id,
+                        'Content', p.Content,
+                        'CreatedAt', p.CreatedAt,
+                        'User', json_object(
+                            'Id', u.Id,
+                            'Username', u.Username,
+                            'Email', u.EmailAddress
+                        )
+                    )
+                ), 
+                '[]'
+            ) AS Posts
+        FROM 
+            Topics t
+        LEFT JOIN 
+            Posts p ON t.Id = p.TopicId
+        LEFT JOIN
+            Users u ON p.UserId = u.Id
+        WHERE
+            t.ForumId = ?
+        GROUP BY 
+            t.Id
+        LIMIT
+            1000;
+        `
+    )
+    .bind(forumId)
+    .all();
+
+    const topics = results.map(topic => {
+        try {
+            const posts = JSON.parse(topic.Posts);
+            const firstPostAuthor = posts.length > 0 ? posts[0].User.Username : null;
+            
+            return {
+                Id: topic.TopicId,
+                Title: topic.TopicTitle,
+                CreatedAt: topic.TopicCreatedAt,
+                User: firstPostAuthor ? { Username: firstPostAuthor } : null,
+                Posts: posts,
+            };
+        } catch (error) {
+            console.error('Error processing topic:', error, 'Topic:', topic);
+            return {};
+        }
+    });
+
+    return Response.json({
+        topics: topics
+    });
 }
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
