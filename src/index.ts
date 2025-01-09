@@ -21,15 +21,87 @@ function updateAccount(request: Request, params: Record<string, string>, env: En
 
 async function getCategories(request: Request, params: Record<string, string>, env: Env) {
 	const { results } = await env.DB.prepare(
-		"SELECT * FROM Categories;"
+		`
+		SELECT 
+			c.Id AS Id,
+			c.Name,
+			c.Description,
+			c.SortOrder,
+			c.CreatedAt,
+			c.UpdatedAt,
+			c.DeletedAt,
+			COALESCE(
+				json_group_array(
+					json_object(
+						'Id', f.Id,
+						'Name', f.Name,
+						'Description', f.Description,
+						'SortOrder', f.SortOrder,
+						'CreatedAt', f.CreatedAt,
+						'UpdatedAt', f.UpdatedAt,
+						'DeletedAt', f.DeletedAt
+					)
+				), 
+				'[]'
+			) AS forums
+		FROM 
+			Categories c
+		LEFT JOIN 
+			Forums f
+		ON 
+			c.Id = f.CategoryId
+		GROUP BY 
+			c.Id;
+
+		`
 	)
 	.all();
-	
+		
 	return Response.json(results);
 }
 
-function getCategoryById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function getCategoryById(request: Request, params: Record<string, string>, env: Env) {
+	const { results } = await env.DB.prepare(
+		`
+		SELECT 
+			c.Id,
+			c.Name,
+			c.Description,
+			c.SortOrder,
+			c.CreatedAt,
+			c.UpdatedAt,
+			c.DeletedAt,
+			COALESCE(
+				json_group_array(
+					json_object(
+						'Id', f.Id,
+						'Name', f.Name,
+						'Description', f.Description,
+						'SortOrder', f.SortOrder,
+						'CreatedAt', f.CreatedAt,
+						'UpdatedAt', f.UpdatedAt,
+						'DeletedAt', f.DeletedAt
+					)
+				), 
+				'[]'
+			) AS forums
+		FROM 
+			Categories c
+		LEFT JOIN 
+			Forums f
+		ON 
+			c.Id = f.CategoryId
+		WHERE
+			c.Id = ?
+		GROUP BY 
+			c.Id;
+
+		`
+	)
+	.bind(params["categoryId"])
+	.all();
+		
+	return Response.json(results);
 }
 
 function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
