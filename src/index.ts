@@ -68,9 +68,9 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 
 async function signUp(request: Request, params: Record<string, string>, env: Env) {
 	const inputSchema = z.object({
-		Username: z.string(),
-		EmailAddress: z.string().email(),
-		Password: z.string().min(16),
+		username: z.string(),
+		email: z.string().email(),
+		password: z.string().min(16),
 	});
 
 	const contentType = request.headers.get("content-type");
@@ -78,8 +78,8 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 		try {
 			const json = await request.json();
 			const parsedInput = inputSchema.parse(json);
-			const { Username, EmailAddress, Password } = parsedInput;
-			const passwordHash = hashSync(Password, 8);
+			const { username, email, password } = parsedInput;
+			const passwordHash = hashSync(password, 8);
 
 			try {
 				const { results } = await env.DB.prepare(
@@ -93,7 +93,7 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 					VALUES (?, ?, ?, ?);
 					`
 				)
-				.bind(Username, passwordHash, EmailAddress, Date.now())
+				.bind(username, passwordHash, email, Date.now())
 				.all();
 
 				return new Response(JSON.stringify(results));
