@@ -104,8 +104,37 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 	return Response.json(results);
 }
 
-function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
+	const { results } = await env.DB.prepare(
+		`
+		SELECT 
+			t.Id,
+			COALESCE(
+				json_group_array(
+					json_object(
+						'Id', p.Id
+					)
+				), 
+				'[]'
+			) AS posts
+		FROM 
+			Topics t
+		LEFT JOIN 
+			Posts p
+		ON 
+			t.Id = p.TopicId
+		WHERE
+			t.ForumId = ?
+		GROUP BY 
+			t.Id
+		LIMIT
+			1000;
+		`
+	)
+	.bind(params["forumId"])
+	.all();
+		
+	return Response.json(results);
 }
 
 function getTopicById(request: Request, params: Record<string, string>, env: Env) {
