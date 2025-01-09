@@ -130,8 +130,33 @@ function forgotPassword(request: Request, params: Record<string, string>, env: E
 	return new Response("Not implemented!", { status: 501 });
 }
 
-function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
+	if (!await isUserLoggedIn(request)) {
+		return new Response("Unauthorized", { status: 401 });
+	}
+
+	const userId = await getUserIdFromJwt(request);
+
+	const user = await env.DB.prepare(
+		`
+		SELECT * FROM Users
+		WHERE Id = ?
+		`
+	).bind(userId).first();
+
+	if (!user) {
+		return new Response("User not found", { status: 404 });
+	}
+
+	return Response.json({
+		user: {
+			Username: user.Username,
+			EmailAddress: user.EmailAddress,
+			image: ''
+		},
+		isAdministrator: user.IsAdministrator,
+		isModerator: user.IsModerator
+	}, { status: 200 });
 }
 
 function updateAccount(request: Request, params: Record<string, string>, env: Env) {
@@ -699,7 +724,6 @@ async function updatePostById(
         return new Response("Invalid user ID in token.", { status: 400 });
     }
 
-    // 3. Parse and validate postId from URL parameters
     const postIdStr = params["postId"] || params["postid"] || params["postID"];
     if (!postIdStr) {
         return new Response("Missing postId in the URL.", { status: 400 });
@@ -711,7 +735,6 @@ async function updatePostById(
     }
 
     try {
-        // 4. Verify that the post exists and belongs to the user
         const { results: postResults } = await env.DB.prepare(`
             SELECT p.Id, p.Content, p.UserId, p.TopicId, p.CreatedAt, p.UpdatedAt
             FROM Posts p
@@ -1038,8 +1061,8 @@ const routes: Record<string, RouteHandler> = {
 	"POST /sign-in": (request, params = {}, env = {}) => signIn(request, params, env),
 	"POST /sign-up": (request, params = {}, env = {}) => signUp(request, params, env),
 	"POST /forgot-password": (request, params = {}, env = {}) => forgotPassword(request, params, env),
-	"POST /verify_credentials": (request, params = {}, env = {}) => verifyCredentials(request, params, env),
-	"PATCH /account": (request, params = {}, env = {}) => updateAccount(request, params, env),
+	"POST /s/verify_credentials": (request, params = {}, env = {}) => verifyCredentials(request, params, env),
+	"PATCH /s/account": (request, params = {}, env = {}) => updateAccount(request, params, env),
 
 	// Public Actions
 	"GET /categories": (request, params = {}, env = {}) => getCategories(request, params, env),
