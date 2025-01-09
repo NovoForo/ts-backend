@@ -325,8 +325,68 @@ function updatePostById(request: Request, params: Record<string, string>, env: E
 	return new Response("Not implemented!", { status: 501 });
 }
 
-function deletePostById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function deletePostById(request: Request, params: Record<string, string>, env: Env) {
+	if (await isUserLoggedIn(request)) {
+		// Retrieve the user ID from the request (assumes a function like `getUserIdFromRequest` exists).
+		const userId = await getUserIdFromJwt(request);
+
+		// First, check if the post exists and is owned by the user.
+		const postCheck = await env.DB.prepare(
+			`
+			SELECT TopicId
+			FROM Posts
+			WHERE Id = ? AND UserId = ?
+			`
+		)
+		.bind(params["postId"], userId)
+		.first();
+
+		if (!postCheck) {
+			// Post does not exist or user is not authorized.
+			return Response.json({ success: false, message: "You are not authorized to delete this post or it doesn't exist." }, { status: 403 });
+		}
+
+		const topicId = postCheck.TopicId;
+
+		// Delete the post.
+		await env.DB.prepare(
+			`
+			DELETE FROM Posts
+			WHERE Id = ?
+			`
+		)
+		.bind(params["postId"])
+		.run();
+
+		// Check if there are any other posts in the same topic.
+		const otherPosts = await env.DB.prepare(
+			`
+			SELECT 1
+			FROM Posts
+			WHERE TopicId = ?
+			LIMIT 1
+			`
+		)
+		.bind(topicId)
+		.first();
+
+		if (!otherPosts) {
+			// No other posts in the topic; delete the topic.
+			await env.DB.prepare(
+				`
+				DELETE FROM Topics
+				WHERE Id = ?
+				`
+			)
+			.bind(topicId)
+			.run();
+		}
+
+		// Respond with success.
+		return Response.json({ success: true, message: "Post (and topic, if applicable) deleted successfully." });
+	} else {
+		return Response.json({ success: false, message: "User not logged in." }, { status: 401 });
+	}
 }
 
 function createCategory(request: Request, params: Record<string, string>, env: Env) {
@@ -431,6 +491,33 @@ function isUserAModerator(request: Request): Boolean {
 
 function isUserAnAdministrator(request: Request): Boolean {
 	return true;
+}
+
+async function getUserFromJwt(request: Request, env: Env): Promise<any> {
+	const userId = await getUserIdFromJwt(request);
+	if (userId && (await isUserLoggedIn(request))) {
+		const { results } = await env.DB.prepare(
+			`
+			SELECT
+				u.Id AS UserId,
+				u.Username AS UserName,
+				u.EmailAddress AS UserEmail,
+				u.CreatedAt AS CreatedAt,
+				u.UpdatedAt AS UpdatedAt,
+				u.DeletedAt AS DeletedAt,
+				u.DisabledAt AS DisabledAt,
+			FROM 
+				Users u
+			WHERE
+				u.Id = ?
+			`
+		)
+		.bind(userId)
+		.all();
+
+		const row = await results[0];
+		return row;
+	}
 }
 
 async function getUserIdFromJwt(request: Request): Promise<String | null> {
