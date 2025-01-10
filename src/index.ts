@@ -86,8 +86,30 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 			const parsedInput = inputSchema.parse(json);
 			const { username, email, password } = parsedInput;
 			const passwordHash = hashSync(password, 8);
+            let usersCount = 0;
+
+            try {
+                const { results } = await env.DB.prepare(
+                    `
+                    SELECT COUNT(*) AS UsersCount
+                    FROM Users
+                    `
+                )
+                .all();
+
+                usersCount = results[0].UsersCount as number;
+            } catch (error: any) {
+                return new Response("An error occurred while querying the database.", { status: 500 });
+            }
 
 			try {
+                let isAdministrator = false;
+                let isModerator = false;
+
+                if (usersCount == 0) {
+                    isAdministrator = true;
+                    isModerator = true;
+                }
 				const { results } = await env.DB.prepare(
 					
 					`
@@ -95,11 +117,11 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 						(Username,
 						PasswordHash,
 						EmailAddress,
-						CreatedAt)
-					VALUES (?, ?, ?, ?);
+						CreatedAt, IsAdministrator, IsModerator)
+					VALUES (?, ?, ?, ?, ?, ?);
 					`
 				)
-				.bind(username, passwordHash, email, Date.now())
+				.bind(username, passwordHash, email, Math.floor(Date.now() / 1000), isAdministrator, isModerator)
 				.all();
 
 				return new Response(JSON.stringify(results));
@@ -111,6 +133,7 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 						return new Response("Email address already exists!", { status: 400 });
 					}
 				}
+                console.log(error)
 				return new Response("Database error occurred.", { status: 500 });
 			}
 		} catch (error) {
@@ -993,12 +1016,172 @@ async function deletePostById(request: Request, params: Record<string, string>, 
     return Response.json({ success: true, message: "Post (and topic, if applicable) deleted successfully." });
 }
 
-function createCategory(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function createCategory(request: Request, params: Record<string, string>, env: Env) {
+	if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!await isUserAnAdministrator(request, env)) {
+        return new Response("Forbidden. Only administrators can create categories.", { status: 403 });
+    }
+
+    const contentType = request.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        return new Response("Invalid content-type! Expected application/json.", { status: 400 });
+    }
+
+    let jsonData: any;
+    try {
+        jsonData = await request.json();
+    } catch (error) {
+        return new Response("Invalid JSON payload!", { status: 400 });
+    }
+
+    const categorySchema = z.object({
+        name: z.string().min(1, "Name is required."),
+        description: z.string(),
+    });
+
+    let parsedData;
+    try {
+        parsedData = categorySchema.parse(jsonData);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return new Response(JSON.stringify(error.errors), { status: 400 });
+        }
+        return new Response("Failed to validate category data!", { status: 400 });
+    }
+
+    try {
+        const insertCategoryResult = await env.DB.prepare(
+            `
+            INSERT INTO Categories
+                (Name, Description, SortOrder, CreatedAt)
+            VALUES 
+                (?, ?, ?, ?);
+            `
+        )
+        .bind(parsedData.name, parsedData.description ?? "", 1, Math.floor(Date.now() / 1000))
+        .run();
+        
+        const categoryIdResult = await env.DB.prepare(
+            `
+            SELECT Id FROM Categories
+            WHERE Name = ?
+            ORDER BY CreatedAt DESC
+            LIMIT 1;
+            `
+        )
+        .bind(parsedData.name)
+        .first();
+
+        if (!categoryIdResult || !categoryIdResult.Id) {
+            return new Response("Failed to retrieve the newly created category ID.", { status: 500 });
+        }
+
+        const newCategoryId = categoryIdResult.Id;
+
+        return Response.json({
+            success: true,
+            Category: {
+                Id: newCategoryId,
+                Name: parsedData.name,
+                Description: parsedData.description ?? "",
+                CreatedAt: Math.floor(Date.now()),
+            },
+            message: "Category created successfully.",
+        }, { status: 201 });
+    } catch (error: any) {
+        console.error("Database error:", error.message);
+        return new Response("An error occurred while creating the category.", {
+            status: 500,
+        });
+    }
 }
 
-function createForum(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function createForum(request: Request, params: Record<string, string>, env: Env) {
+    if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!await isUserAnAdministrator(request, env)) {
+        return new Response("Forbidden. Only administrators can create forums.", { status: 403 });
+    }
+
+    const contentType = request.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        return new Response("Invalid content-type! Expected application/json.", { status: 400 });
+    }
+
+    const categroyId = params["categoryId"];
+
+    let jsonData: any;
+    try {
+        jsonData = await request.json();
+    } catch (error) {
+        return new Response("Invalid JSON payload!", { status: 400 });
+    }
+
+    const forumSchema = z.object({
+        name: z.string().min(1, "Name is required."),
+        description: z.string(),
+    });
+
+    let parsedData;
+    try {
+        parsedData = forumSchema.parse(jsonData);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return new Response(JSON.stringify(error.errors), { status: 400 });
+        }
+        return new Response("Failed to validate forum data!", { status: 400 });
+    }
+
+    try {
+        const insertForumResult = await env.DB.prepare(
+            `
+            INSERT INTO Forums
+                (Name, Description, SortOrder, CategoryId, CreatedAt)
+            VALUES 
+                (?, ?, ?, ?, ?);
+            `
+        )
+        .bind(parsedData.name, parsedData.description ?? "", 1, categroyId, Math.floor(Date.now() / 1000))
+        .run();
+
+        const forumIdResult = await env.DB.prepare(
+            `
+            SELECT Id FROM Forums
+            WHERE Name = ?
+            ORDER BY CreatedAt DESC
+            LIMIT 1;
+            `
+        )
+        .bind(parsedData.name)
+        .first();
+
+        if (!forumIdResult || !forumIdResult.Id) {
+            return new Response("Failed to retrieve the newly created forum ID.", { status: 500 });
+        }
+
+        const newForumId = forumIdResult.Id;
+
+        return Response.json({
+            success: true,
+            Forum: {
+                Id: newForumId,
+                Name: parsedData.name,
+                Description: parsedData.description ?? "",
+                CategoryId: parsedData.categoryId
+            },
+            message: "Forum created successfully.",
+        }, { status: 201 });
+    } catch (error: any) {
+        console.error("Database error:", error.message);
+        return new Response("An error occurred while creating the forum.", {
+            status: 500,
+        });
+    }
 }
 
 function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
@@ -1104,12 +1287,26 @@ async function isUserLoggedIn(request: Request): Promise<Boolean> {
 	}
 }
 
-function isUserAModerator(request: Request): Boolean {
-	return true;
+async function isUserAModerator(request: Request, env: Env): Promise<Boolean> {
+    const user = await getUserFromJwt(request, env);
+    const isModerator = user.UserIsModerator;
+	
+    if (isModerator) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
-function isUserAnAdministrator(request: Request): Boolean {
-	return true;
+async function isUserAnAdministrator(request: Request, env: Env): Promise<Boolean> {
+    const user = await getUserFromJwt(request, env);
+    const isAdministrator = user.UserIsAdministrator;
+
+    if (isAdministrator) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 async function getUserFromJwt(request: Request, env: Env): Promise<any> {
@@ -1121,10 +1318,12 @@ async function getUserFromJwt(request: Request, env: Env): Promise<any> {
 				u.Id AS UserId,
 				u.Username AS UserName,
 				u.EmailAddress AS UserEmail,
+                u.IsModerator AS UserIsModerator,
+                u.IsAdministrator AS UserIsAdministrator,
 				u.CreatedAt AS CreatedAt,
 				u.UpdatedAt AS UpdatedAt,
 				u.DeletedAt AS DeletedAt,
-				u.DisabledAt AS DisabledAt,
+				u.DisabledAt AS DisabledAt
 			FROM 
 				Users u
 			WHERE
