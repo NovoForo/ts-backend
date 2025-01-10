@@ -328,6 +328,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                 t.Id AS TopicId,
                 t.Title AS TopicTitle,
                 t.CreatedAt AS TopicCreatedAt,
+                p.CreatedAt AS PostCreatedAt,
                 MAX(p.CreatedAt) AS LatestPostDate,
                 COUNT(t.Id) OVER() AS TotalCount,
                 COALESCE(
@@ -376,10 +377,14 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                 const posts = JSON.parse(topic.Posts as string);
                 const firstPostAuthor = posts.length > 0 ? posts[0].User.Username : null;
                 
+                posts.map((post: any) => {
+                    post.CreatedAt = post.CreatedAt * 1000;
+                });
+
                 return {
                     Id: topic.TopicId,
                     Title: topic.TopicTitle,
-                    CreatedAt: (topic.TopicCreatedAt as number * 1000),
+                    CreatedAt: topic.TopicCreatedAt as number * 1000,
                     User: firstPostAuthor ? { Username: firstPostAuthor } : null,
                     Posts: posts,
                 };
@@ -417,8 +422,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 			p.Id AS PostId,
 			p.Title AS PostTitle,
 			p.Content AS PostContent,
-            p.CreatedAt AS CreatedAt,
-            p.UpdatedAt AS UpdatedAt,
+            p.CreatedAt AS PostCreatedAt,
+            p.UpdatedAt AS PostUpdatedAt,
 			t.Id AS TopicId,
 			t.Title AS TopicTitle,
 			t.Description AS TopicDescription,
@@ -452,8 +457,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 		Id: row.PostId,
 		Title: row.PostTitle,
 		Content: row.PostContent,
-        CreatedAt: row.CreatedAt * 1000,
-        UpdatedAt: row.UpdatedAt ? row.UpdatedAt * 1000 : null,
+        CreatedAt: row.PostCreatedAt * 1000,
+        UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
 		Topic: {
 			Id: row.TopicId,
 			Title: row.TopicTitle,
@@ -644,7 +649,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
                     Username: newPost.UserName,
                     Email: newPost.UserEmail,
                 },
-                CreatedAt: Math.floor(Date.now() / 1000),
+                CreatedAt: Math.floor(Date.now()),
             },
             message: "Reply posted successfully.",
         }), { status: 201, headers: { "Content-Type": "application/json" } });
@@ -778,7 +783,7 @@ async function createTopicByForumId(
                 Title: parsedData.title,
                 Description: parsedData.description ?? "",
                 ForumId: forumId,
-                CreatedAt: Math.floor(Date.now() / 1000) * 1000,
+                CreatedAt: Math.floor(Date.now()),
                 UserId: userId,
             },
             Post: {
@@ -787,7 +792,7 @@ async function createTopicByForumId(
                 Content: parsedData.content,
                 TopicId: newTopicId,
                 UserId: userId,
-                CreatedAt: Math.floor(Date.now() / 1000) * 1000,
+                CreatedAt: Math.floor(Date.now()),
             },
             message: "Topic and initial post created successfully.",
         }, { status: 201 });
@@ -924,8 +929,8 @@ async function updatePostById(
                     Username: updatedPost.UserName,
                     Email: updatedPost.UserEmail,
                 },
-                CreatedAt: Math.floor(Date.now() / 1000),
-                UpdatedAt: Math.floor(Date.now() / 1000),
+                CreatedAt: Math.floor(Date.now()),
+                UpdatedAt: Math.floor(Date.now()),
             },
             message: "Post updated successfully.",
         }), { 
