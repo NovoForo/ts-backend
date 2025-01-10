@@ -46,7 +46,7 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 					const token = await jwt.sign({
 						sub: user.Id,
 						nbf: Math.floor(Date.now() / 1000), 
-						exp: Math.floor(Date.now() / 1000) + (2 * (60 * 60))
+						exp: Math.floor(Date.now() / 1000) + ((365 * 24 * (60 * 60)))
 					}, JWT_SECRET)
                     return await Response.json({
 						name: user.Username,
