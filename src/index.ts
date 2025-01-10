@@ -373,13 +373,13 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
 
         const topics = results.map(topic => {
             try {
-                const posts = JSON.parse(topic.Posts);
+                const posts = JSON.parse(topic.Posts as string);
                 const firstPostAuthor = posts.length > 0 ? posts[0].User.Username : null;
                 
                 return {
                     Id: topic.TopicId,
                     Title: topic.TopicTitle,
-                    CreatedAt: (topic.TopicCreatedAt * 1000),
+                    CreatedAt: (topic.TopicCreatedAt as number * 1000),
                     User: firstPostAuthor ? { Username: firstPostAuthor } : null,
                     Posts: posts,
                 };
@@ -940,60 +940,52 @@ async function updatePostById(
 }
 
 async function deletePostById(request: Request, params: Record<string, string>, env: Env) {
-	if (await isUserLoggedIn(request)) {
-		const userId = await getUserIdFromJwt(request);
+    if (!await isUserLoggedIn(request)) {
+        return Response.json({ success: false, message: "User not logged in." }, { status: 401 });
+    }
 
-		const postCheck = await env.DB.prepare(
-			`
-			SELECT TopicId
-			FROM Posts
-			WHERE Id = ? AND UserId = ?
-			`
-		)
-		.bind(params["postId"], userId)
-		.first();
+    const userId = await getUserIdFromJwt(request);
 
-		if (!postCheck) {
-			return Response.json({ success: false, message: "You are not authorized to delete this post or it doesn't exist." }, { status: 403 });
-		}
+    const postCheck = await env.DB.prepare(
+        `
+        SELECT TopicId
+        FROM Posts
+        WHERE Id = ? AND UserId = ?
+        `
+    ).bind(params["postId"], userId).first();
 
-		const topicId = postCheck.TopicId;
+    if (!postCheck) {
+        return Response.json({ success: false, message: "You are not authorized to delete this post or it doesn't exist." }, { status: 403 });
+    }
 
-		await env.DB.prepare(
-			`
-			DELETE FROM Posts
-			WHERE Id = ?
-			`
-		)
-		.bind(params["postId"])
-		.run();
+    const topicId = postCheck.TopicId;
 
-		const otherPosts = await env.DB.prepare(
-			`
-			SELECT 1
-			FROM Posts
-			WHERE TopicId = ?
-			LIMIT 1
-			`
-		)
-		.bind(topicId)
-		.first();
+    await env.DB.prepare(
+        `
+        DELETE FROM Posts
+        WHERE Id = ?
+        `
+    ).bind(params["postId"]).run();
 
-		if (!otherPosts) {
-			await env.DB.prepare(
-				`
-				DELETE FROM Topics
-				WHERE Id = ?
-				`
-			)
-			.bind(topicId)
-			.run();
-		}
+    const otherPostsExist = await env.DB.prepare(
+        `
+        SELECT 1
+        FROM Posts
+        WHERE TopicId = ?
+        LIMIT 1
+        `
+    ).bind(topicId).first();
 
-		return Response.json({ success: true, message: "Post (and topic, if applicable) deleted successfully." });
-	} else {
-		return Response.json({ success: false, message: "User not logged in." }, { status: 401 });
-	}
+    if (!otherPostsExist) {
+        await env.DB.prepare(
+            `
+            DELETE FROM Topics
+            WHERE Id = ?
+            `
+        ).bind(topicId).run();
+    }
+
+    return Response.json({ success: true, message: "Post (and topic, if applicable) deleted successfully." });
 }
 
 function createCategory(request: Request, params: Record<string, string>, env: Env) {
@@ -1142,7 +1134,7 @@ async function getUserFromJwt(request: Request, env: Env): Promise<any> {
 	}
 }
 
-async function getUserIdFromJwt(request: Request): Promise<String | null> {
+async function getUserIdFromJwt(request: Request): Promise<string | null> {
 	const authorizationHeader = request.headers.get("authorization");
 	const token = authorizationHeader?.startsWith("Bearer ") 
     ? authorizationHeader.slice(7).trim() 
@@ -1162,31 +1154,31 @@ async function getUserIdFromJwt(request: Request): Promise<String | null> {
 
 // Router
 type RouteHandler = (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>;
-const routes: Record<string, RouteHandler> = {	
+const routes: Record<string, (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>> = {	
 	// Account Actions
-	"POST /sign-in": (request, params = {}, env = {}) => signIn(request, params, env),
-	"POST /sign-up": (request, params = {}, env = {}) => signUp(request, params, env),
-	"POST /forgot-password": (request, params = {}, env = {}) => forgotPassword(request, params, env),
-	"POST /s/verify_credentials": (request, params = {}, env = {}) => verifyCredentials(request, params, env),
-	"PATCH /s/account": (request, params = {}, env = {}) => updateAccount(request, params, env),
+    "POST /sign-in": (request, params = {}, env) => env ? signIn(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "POST /sign-up": (request, params = {}, env) => env ? signUp(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "POST /forgot-password": (request, params = {}, env) => env ? forgotPassword(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "POST /s/verify_credentials": (request, params = {}, env) => env ? verifyCredentials(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "PATCH /s/account": (request, params = {}, env) => env ? updateAccount(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
 	// Public Actions
-	"GET /categories": (request, params = {}, env = {}) => getCategories(request, params, env),
-	"GET /categories/:categoryId": (request, params = {}, env = {}) => getCategoryById(request, params, env),
-	"GET /categories/:categoryId/forums/:forumId": (request, params = {}, env = {}) => getTopicsByForumId(request, params, env),
-	"GET /categories/:categoryId/forums/:forumId/topics/:topicId": (request, params = {}, env = {}) => getTopicById(request, params, env),
+    "GET /categories": (request, params = {}, env) => env ? getCategories(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "GET /categories/:categoryId": (request, params = {}, env) => env ? getCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "GET /categories/:categoryId/forums/:forumId": (request, params = {}, env) => env ? getTopicsByForumId(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "GET /categories/:categoryId/forums/:forumId/topics/:topicId": (request, params = {}, env) => env ? getTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
 	// Authenticated Actions
-	"POST /s/categories/:categoryID/forums/:forumID/topics/:topicId": (request, params = {}, env = {}) => replyToTopicById(request, params, env),
-	"POST /s/categories/:categoryID/forums/:forumID/topics": (request, params = {}, env = {}) => createTopicByForumId(request, params, env),
-	"PATCH /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => updatePostById(request, params, env),
-	"DELETE /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env = {}) => deletePostById(request, params, env),
+    "POST /s/categories/:categoryID/forums/:forumID/topics/:topicId": (request, params = {}, env) => env ? replyToTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "POST /s/categories/:categoryID/forums/:forumID/topics": (request, params = {}, env) => env ? createTopicByForumId(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "PATCH /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env) => env ? updatePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "DELETE /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env) => env ? deletePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
 	// Admin Actions
-	"POST /a/categories": (request, params = {}, env = {}) => createCategory(request, params, env),
-	"POST /a/categories/:categoryId": (request, params = {}, env = {}) => createForum(request, params, env),
-	"PATCH /a/categories/:categoryId": (request, params = {}, env = {}) => updateCategoryById(request, params, env),
-	"DELETE /a/categories/:categoryId": (request, params = {}, env = {}) => deleteCategoryById(request, params, env),
+    "POST /a/categories": (request, params = {}, env) => env ? createCategory(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "POST /a/categories/:categoryId": (request, params = {}, env) => env ? createForum(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "PATCH /a/categories/:categoryId": (request, params = {}, env) => env ? updateCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "DELETE /a/categories/:categoryId": (request, params = {}, env) => env ? deleteCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
 }
 
