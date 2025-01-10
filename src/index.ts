@@ -379,7 +379,10 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
         }
     });
 
+	const TotalCount = results[0].TotalCount;
+
     return Response.json({
+		count: TotalCount,
         topics: topics
     });
 }
@@ -420,6 +423,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 	.bind(params["topicId"], limit, skip)
 	.all();
 
+	const TotalCount = results[0].TotalCount;
+
 	const posts = results.map((row: any) => ({
 		Id: row.PostId,
 		Title: row.PostTitle,
@@ -439,6 +444,7 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 	}));
 
 	return Response.json({
+		count: TotalCount,
 		posts: posts
 	});
 }
