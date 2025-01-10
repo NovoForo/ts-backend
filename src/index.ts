@@ -51,7 +51,7 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
                     return await Response.json({
 						name: user.Username,
 						email: user.EmailAddress,
-						image: '',
+						image: "https://www.gravatar.com/avatar/" + await md5(user.EmailAddress),
 						token: token,
 						isAdministrator: user.IsAdministrator,
 						isModerator: user.IsModerator
