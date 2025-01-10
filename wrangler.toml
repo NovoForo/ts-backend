@@ -47,8 +47,8 @@ enabled = true
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#d1-databases
 [[d1_databases]]
 binding = "DB"
-database_name = "novoforo-dev"
-database_id = "b5fdce54-234d-4f9c-92f7-eb7f9c6d2296"
+database_name = "novoforo-testing"
+database_id = "1f8290dd-5533-4e77-afcb-bc4c3fe00b63"
 
 # Bind a dispatch namespace. Use Workers for Platforms to deploy serverless functions programmatically on behalf of your customers.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#dispatch-namespace-bindings-workers-for-platforms
