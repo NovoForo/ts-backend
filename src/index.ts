@@ -1399,23 +1399,6 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
 
 }
 
-function handleRequest(request: Request, env: Env): Promise<Response> {
-	const { method, url } = request;
-	const pathName = new URL(url).pathname;
-
-	for (const routeKey of Object.keys(routes)) {
-		const [routeMethod, routePath] = routeKey.split(" ");
-		if (method === routeMethod) {
-			const { isMatch, params } = matchRoute(routePath, pathName);
-			if (isMatch) {
-				return Promise.resolve(routes[routeKey](request, params, env));
-			}
-		}
-	}
-
-	return Promise.resolve(new Response("Not Found", { status: 404 }));
-}
-
 function matchRoute(routePath: string, actualPath: string): { isMatch: boolean; params: Record<string, string> } {
 	const routeParts = routePath.split("/");
 	const actualParts = actualPath.split("/");
@@ -1437,8 +1420,40 @@ function matchRoute(routePath: string, actualPath: string): { isMatch: boolean; 
 	return { isMatch: true, params };
 }
 
+function handleRequest(request: Request, env: Env): Promise<Response> {
+	const { method, url } = request;
+	const pathName = new URL(url).pathname;
+
+	for (const routeKey of Object.keys(routes)) {
+		const [routeMethod, routePath] = routeKey.split(" ");
+		if (method === routeMethod) {
+			const { isMatch, params } = matchRoute(routePath, pathName);
+			if (isMatch) {
+				return Promise.resolve(routes[routeKey](request, params, env));
+			}
+		}
+	}
+
+	return Promise.resolve(new Response("Not Found", { status: 404 }));
+}
+
+async function handleRequestWithCors(request: Request, env: Env): Promise<Response> {
+	const response = await handleRequest(request, env);
+	const headers = new Headers(response.headers);
+
+	headers.set("Access-Control-Allow-Origin", "*");
+	headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+	headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}
+
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		return handleRequest(request, env);
+		return handleRequestWithCors(request, env);
 	},
 } satisfies ExportedHandler<Env>;
