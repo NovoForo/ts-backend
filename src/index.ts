@@ -1172,7 +1172,7 @@ async function createForum(request: Request, params: Record<string, string>, env
                 Id: newForumId,
                 Name: parsedData.name,
                 Description: parsedData.description ?? "",
-                CategoryId: parsedData.categoryId
+                CategoryId: categroyId
             },
             message: "Forum created successfully.",
         }, { status: 201 });
