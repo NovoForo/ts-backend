@@ -48,7 +48,7 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 						nbf: Math.floor(Date.now() / 1000), 
 						exp: Math.floor(Date.now() / 1000) + (2 * (60 * 60))
 					}, JWT_SECRET)
-					return Response.json({
+                    return await Response.json({
 						name: user.Username,
 						email: user.EmailAddress,
 						image: '',
@@ -435,73 +435,77 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
 }
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
-	const queryParams = getQueryParams(request.url);
-	const skip = queryParams["skip"] || 0;
-	const limit = queryParams["limit"] || 10;
+    const queryParams = getQueryParams(request.url);
+    const skip = queryParams["skip"] || 0;
+    const limit = queryParams["limit"] || 10;
 
-	const { results } = await env.DB.prepare(
-		`
-		SELECT 
-			p.Id AS PostId,
-			p.Title AS PostTitle,
-			p.Content AS PostContent,
+    const { results } = await env.DB.prepare(
+        `
+        SELECT 
+            p.Id AS PostId,
+            p.Title AS PostTitle,
+            p.Content AS PostContent,
             p.CreatedAt AS PostCreatedAt,
             p.UpdatedAt AS PostUpdatedAt,
-			t.Id AS TopicId,
-			t.Title AS TopicTitle,
-			t.Description AS TopicDescription,
+            t.Id AS TopicId,
+            t.Title AS TopicTitle,
+            t.Description AS TopicDescription,
             t.CreatedAt AS TopicCreatedAt,
             t.UpdatedAt AS TopicUpdatedAt,
-			u.Id AS UserId,
-			u.Username AS UserName,
-			u.EmailAddress AS UserEmail,
-			u.IsAdministrator AS UserIsAdministrator,
-			u.IsModerator AS UserIsModerator,
-			COUNT(*) OVER() AS TotalCount
-		FROM 
-			Posts p
-		LEFT JOIN 
-			Topics t ON p.TopicId = t.Id
-		LEFT JOIN
-			Users u ON p.UserId = u.Id
-		WHERE
-			p.TopicId = ?
-		GROUP BY 
-			p.Id
-		LIMIT ? OFFSET ?
-		`
-	)
-	.bind(params["topicId"], limit, skip)
-	.all();
+            u.Id AS UserId,
+            u.Username AS UserName,
+            u.EmailAddress AS UserEmail,
+            u.IsAdministrator AS UserIsAdministrator,
+            u.IsModerator AS UserIsModerator,
+            COUNT(*) OVER() AS TotalCount
+        FROM 
+            Posts p
+        LEFT JOIN 
+            Topics t ON p.TopicId = t.Id
+        LEFT JOIN
+            Users u ON p.UserId = u.Id
+        WHERE
+            p.TopicId = ?
+        GROUP BY 
+            p.Id
+        LIMIT ? OFFSET ?
+        `
+    )
+    .bind(params["topicId"], limit, skip)
+    .all();
 
-	const TotalCount = results[0].TotalCount;
+    const TotalCount = results[0].TotalCount;
 
-	const posts = results.map((row: any) => ({
-		Id: row.PostId,
-		Title: row.PostTitle,
-		Content: row.PostContent,
-        CreatedAt: row.PostCreatedAt * 1000,
-        UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
-		Topic: {
-			Id: row.TopicId,
-			Title: row.TopicTitle,
-			Description: row.TopicDescription,
-            CreatedAt: row.TopicCreatedAt * 1000,
-            UpdatedAt: row.TopicUpdatedAt ? row.UpdatedAt * 1000 : null,
-		},
-		User: {
-			Id: row.UserId,
-			Username: row.UserName,
-			Email: row.UserEmail,
-			IsAdministrator: row.UserIsAdministrator == 1 ? true : false,
-			IsModerator: row.UserIsModerator == 1 ? true : false,
-		},
-	}));
+    const posts = await Promise.all(results.map(async (row: any) => {
+        const hash = await md5(row.UserEmail);
+        
+        return {
+            Id: row.PostId,
+            Title: row.PostTitle,
+            Content: row.PostContent,
+            CreatedAt: row.PostCreatedAt * 1000,
+            UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
+            Topic: {
+                Id: row.TopicId,
+                Title: row.TopicTitle,
+                Description: row.TopicDescription,
+                CreatedAt: row.TopicCreatedAt * 1000,
+                UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
+            },
+            User: {
+                Id: row.UserId,
+                Username: row.UserName,
+                Email: hash,
+                IsAdministrator: row.UserIsAdministrator == 1 ? true : false,
+                IsModerator: row.UserIsModerator == 1 ? true : false,
+            }
+        }
+    }));
 
-	return Response.json({
-		count: TotalCount,
-		posts: posts
-	});
+    return Response.json({
+        count: TotalCount,
+        posts: posts
+    });
 }
 
 async function replyToTopicById(request: Request, params: Record<string, string>, env: Env): Promise<Response> {
@@ -1193,6 +1197,15 @@ function deleteCategoryById(request: Request, params: Record<string, string>, en
 }
 
 // Helper Functions
+async function md5(input: string): Promise<string> {
+    const msgUint8 = new TextEncoder().encode(input) // encode as (utf-8) Uint8Array
+    const hashBuffer = await crypto.subtle.digest('MD5', msgUint8) // hash the message
+    const hashArray = Array.from(new Uint8Array(hashBuffer)) // convert buffer to byte array
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('') // convert bytes to hex string
+  
+    return hashHex;
+}
+
 function getQueryParams(url: string): Record<string, string> {
     const parsedUrl = new URL(url);
     
