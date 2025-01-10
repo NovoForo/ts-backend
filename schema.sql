@@ -4,10 +4,11 @@ CREATE TABLE Categories (
     Name TEXT NOT NULL,
     Description TEXT,
     SortOrder INTEGER NOT NULL,
-    CreatedAt DATETIME NOT NULL,
-    UpdatedAt DATETIME,
-    DeletedAt DATETIME
+    CreatedAt INTEGER NOT NULL,
+    UpdatedAt INTEGER,
+    DeletedAt INTEGER
 );
+INSERT INTO Categories (Name, Description, SortOrder, CreatedAt) VALUES ('General', 'General discussion', 1, strftime('%s', 'now'));
 
 DROP TABLE IF EXISTS Forums;
 CREATE TABLE Forums (
@@ -16,11 +17,12 @@ CREATE TABLE Forums (
     Description TEXT,
     SortOrder INTEGER NOT NULL,
     CategoryId INTEGER NOT NULL,
-    CreatedAt DATETIME NOT NULL,
-    UpdatedAt DATETIME,
-    DeletedAt DATETIME,
+    CreatedAt INTEGER NOT NULL,
+    UpdatedAt INTEGER,
+    DeletedAt INTEGER,
     FOREIGN KEY (CategoryId) REFERENCES Categories(Id) ON DELETE CASCADE
 );
+INSERT INTO Forums (Name, Description, SortOrder, CategoryId, CreatedAt) VALUES ('General Discussion', 'General discussion', 1, 1, strftime('%s', 'now'));
 
 DROP TABLE IF EXISTS Topics;
 CREATE TABLE Topics (
@@ -28,9 +30,9 @@ CREATE TABLE Topics (
     Title TEXT NOT NULL,
     Description TEXT,
     ForumId INTEGER NOT NULL,
-    CreatedAt DATETIME NOT NULL,
-    UpdatedAt DATETIME,
-    DeletedAt DATETIME,
+    CreatedAt INTEGER NOT NULL,
+    UpdatedAt INTEGER,
+    DeletedAt INTEGER,
     FOREIGN KEY (ForumId) REFERENCES Forums(Id) ON DELETE CASCADE
 );
 
@@ -41,9 +43,9 @@ CREATE TABLE Posts (
     Content TEXT NOT NULL,
     TopicId INTEGER NOT NULL,
     UserId INTEGER NOT NULL,
-    CreatedAt DATETIME NOT NULL,
-    UpdatedAt DATETIME,
-    DeletedAt DATETIME,
+    CreatedAt INTEGER NOT NULL,
+    UpdatedAt INTEGER,
+    DeletedAt INTEGER,
     FOREIGN KEY (TopicId) REFERENCES Topics(Id) ON DELETE CASCADE,
     FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE SET NULL
 );
@@ -56,8 +58,8 @@ CREATE TABLE Users (
     EmailAddress TEXT NOT NULL UNIQUE,
     IsModerator BOOLEAN NOT NULL DEFAULT 0,
     IsAdministrator BOOLEAN NOT NULL DEFAULT 0,
-    CreatedAt DATETIME NOT NULL,
-    UpdatedAt DATETIME,
-    DeletedAt DATETIME,
-    DisabledAt DATETIME
+    CreatedAt INTEGER NOT NULL,
+    UpdatedAt INTEGER,
+    DeletedAt INTEGER,
+    DisabledAt INTEGER
 );

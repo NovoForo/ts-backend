@@ -49,11 +49,9 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 						exp: Math.floor(Date.now() / 1000) + (2 * (60 * 60))
 					}, JWT_SECRET)
 					return Response.json({
-						user: {
-							name: user.username,
-							email: user.email,
-							image: ''
-						},
+						name: user.Username,
+						email: user.EmailAddress,
+						image: '',
 						token: token,
 						isAdministrator: user.IsAdministrator,
 						isModerator: user.IsModerator
@@ -314,77 +312,98 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 		Categories: categories,
 	});
 }
+
 async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
     const forumId = params["forumId"];
     
-	const queryParams = getQueryParams(request.url);
-	const skip = queryParams["skip"] || 0;
-	const limit = queryParams["limit"] || 10;
+    const queryParams = getQueryParams(request.url);
+    // Parse skip and limit as integers with default values
+    const skip = parseInt(queryParams["skip"], 10) || 0;
+    const limit = parseInt(queryParams["limit"], 10) || 10;
 
-    const { results } = await env.DB.prepare(
-        `
-        SELECT 
-            t.Id AS TopicId,
-            t.Title AS TopicTitle,
-            t.CreatedAt AS TopicCreatedAt,
-			MAX(p.CreatedAt) AS LatestPostDate,
-			COUNT(*) OVER() AS TotalCount,
-            COALESCE(
-                json_group_array(
-                    json_object(
-                        'Id', p.Id,
-                        'Content', p.Content,
-                        'CreatedAt', p.CreatedAt,
-                        'User', json_object(
-                            'Id', u.Id,
-                            'Username', u.Username,
-                            'Email', u.EmailAddress
+    try {
+        const { results } = await env.DB.prepare(
+            `
+            SELECT 
+                t.Id AS TopicId,
+                t.Title AS TopicTitle,
+                t.CreatedAt AS TopicCreatedAt,
+                MAX(p.CreatedAt) AS LatestPostDate,
+                COUNT(t.Id) OVER() AS TotalCount,
+                COALESCE(
+                    json_group_array(
+                        json_object(
+                            'Id', p.Id,
+                            'Content', p.Content,
+                            'CreatedAt', p.CreatedAt,
+                            'User', json_object(
+                                'Id', u.Id,
+                                'Username', u.Username,
+                                'Email', u.EmailAddress
+                            )
                         )
-                    )
-                ), 
-                '[]'
-            ) AS Posts
-        FROM 
-            Topics t
-        LEFT JOIN 
-            Posts p ON t.Id = p.TopicId
-        LEFT JOIN
-            Users u ON p.UserId = u.Id
-        WHERE
-            t.ForumId = ?
-        GROUP BY 
-            t.Id
-		ORDER BY LatestPostDate DESC NULLS LAST
-        LIMIT ? OFFSET ?
-        `
-    )
-    .bind(forumId, limit, skip)
-    .all();
+                    ), 
+                    '[]'
+                ) AS Posts
+            FROM 
+                Topics t
+            LEFT JOIN 
+                Posts p ON t.Id = p.TopicId
+            LEFT JOIN
+                Users u ON p.UserId = u.Id
+            WHERE
+                t.ForumId = ?
+            GROUP BY 
+                t.Id
+            ORDER BY 
+                LatestPostDate DESC NULLS LAST
+            LIMIT ? OFFSET ?
+            `
+        )
+        .bind(forumId, limit, skip)
+        .all();
 
-    const topics = results.map(topic => {
-        try {
-            const posts = JSON.parse(topic.Posts);
-            const firstPostAuthor = posts.length > 0 ? posts[0].User.Username : null;
-            
-            return {
-                Id: topic.TopicId,
-                Title: topic.TopicTitle,
-                CreatedAt: topic.TopicCreatedAt,
-                User: firstPostAuthor ? { Username: firstPostAuthor } : null,
-                Posts: posts,
-            };
-        } catch (error) {
-            console.error('Error processing topic:', error, 'Topic:', topic);
-            return {};
+        // If no results, return empty topics and count as 0
+        if (!results || results.length === 0) {
+            return Response.json({
+                count: 0,
+                topics: []
+            });
         }
-    });
 
-	const TotalCount = results[0].TotalCount;
+        const topics = results.map(topic => {
+            try {
+                const posts = JSON.parse(topic.Posts);
+                const firstPostAuthor = posts.length > 0 ? posts[0].User.Username : null;
+                
+                return {
+                    Id: topic.TopicId,
+                    Title: topic.TopicTitle,
+                    CreatedAt: (topic.TopicCreatedAt * 1000),
+                    User: firstPostAuthor ? { Username: firstPostAuthor } : null,
+                    Posts: posts,
+                };
+            } catch (error) {
+                console.error('Error processing topic:', error, 'Topic:', topic);
+                return {};
+            }
+        });
 
-    return Response.json({
-		count: TotalCount,
-        topics: topics
-    });
+        const TotalCount = results[0].TotalCount || 0;
+
+        return Response.json({
+            count: TotalCount,
+            topics: topics
+        });
+
+    } catch (error) {
+        console.error('Database query failed:', error);
+        return Response.json({
+            count: 0,
+            topics: [],
+            error: 'Failed to retrieve topics.'
+        }, { status: 500 });
+    }
 }
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
@@ -398,9 +417,13 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 			p.Id AS PostId,
 			p.Title AS PostTitle,
 			p.Content AS PostContent,
+            p.CreatedAt AS CreatedAt,
+            p.UpdatedAt AS UpdatedAt,
 			t.Id AS TopicId,
 			t.Title AS TopicTitle,
 			t.Description AS TopicDescription,
+            t.CreatedAt AS TopicCreatedAt,
+            t.UpdatedAt AS TopicUpdatedAt,
 			u.Id AS UserId,
 			u.Username AS UserName,
 			u.EmailAddress AS UserEmail,
@@ -429,17 +452,21 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 		Id: row.PostId,
 		Title: row.PostTitle,
 		Content: row.PostContent,
+        CreatedAt: row.CreatedAt * 1000,
+        UpdatedAt: row.UpdatedAt ? row.UpdatedAt * 1000 : null,
 		Topic: {
 			Id: row.TopicId,
 			Title: row.TopicTitle,
 			Description: row.TopicDescription,
+            CreatedAt: row.TopicCreatedAt * 1000,
+            UpdatedAt: row.TopicUpdatedAt ? row.UpdatedAt * 1000 : null,
 		},
 		User: {
 			Id: row.UserId,
 			Username: row.UserName,
 			Email: row.UserEmail,
-			IsAdministrator: row.UserIsAdministrator,
-			IsModerator: row.UserIsModerator,
+			IsAdministrator: row.UserIsAdministrator == 1 ? true : false,
+			IsModerator: row.UserIsModerator == 1 ? true : false,
 		},
 	}));
 
@@ -543,15 +570,13 @@ async function replyToTopicById(request: Request, params: Record<string, string>
     const title = content.length > 20 ? content.substring(0, 20) + '...' : content;
 
     try {
-        const now = Math.floor(Date.now() / 1000);
-
         const insertPostResult = await env.DB.prepare(`
             INSERT INTO Posts
                 (Title, Content, TopicId, UserId, CreatedAt)
             VALUES
                 (?, ?, ?, ?, ?);
         `)
-            .bind(title, content, topicId, userId, now)
+            .bind(title, content, topicId, userId, Math.floor(Date.now() / 1000))
             .run();
 
         console.log("Insert Post Result:", insertPostResult);
@@ -562,7 +587,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
             ORDER BY CreatedAt DESC
             LIMIT 1;
         `)
-            .bind(topicId, userId, now)
+            .bind(topicId, userId, Math.floor(Date.now() / 1000))
             .first();
 
         console.log("Post ID Result:", postIdResult);
@@ -619,7 +644,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
                     Username: newPost.UserName,
                     Email: newPost.UserEmail,
                 },
-                CreatedAt: new Date(newPost.CreatedAt * 1000).toISOString(),
+                CreatedAt: Math.floor(Date.now() / 1000),
             },
             message: "Reply posted successfully.",
         }), { status: 201, headers: { "Content-Type": "application/json" } });
@@ -679,8 +704,6 @@ async function createTopicByForumId(
     }
 
     try {
-        const now = Date.now();
-
         const insertTopicResult = await env.DB.prepare(
             `
             INSERT INTO Topics
@@ -689,7 +712,7 @@ async function createTopicByForumId(
                 (?, ?, ?, ?);
             `
         )
-        .bind(parsedData.title, parsedData.description ?? null, forumId, now)
+        .bind(parsedData.title, parsedData.description ?? null, forumId, Math.floor(Date.now() / 1000))
         .run();
 
         const topicIdResult = await env.DB.prepare(
@@ -719,7 +742,7 @@ async function createTopicByForumId(
                 (?, ?, ?, ?, ?);
             `
         )
-        .bind(postTitle, parsedData.content, newTopicId, userId, now)
+        .bind(postTitle, parsedData.content, newTopicId, userId, Math.floor(Date.now() / 1000))
         .run();
 
         const postIdResult = await env.DB.prepare(
@@ -730,7 +753,7 @@ async function createTopicByForumId(
             LIMIT 1;
             `
         )
-        .bind(newTopicId, userId, now)
+        .bind(newTopicId, userId, Math.floor(Date.now() / 1000))
         .first();
 
         if (!postIdResult || !postIdResult.Id) {
@@ -755,7 +778,7 @@ async function createTopicByForumId(
                 Title: parsedData.title,
                 Description: parsedData.description ?? "",
                 ForumId: forumId,
-                CreatedAt: new Date(now).toISOString(),
+                CreatedAt: Math.floor(Date.now() / 1000) * 1000,
                 UserId: userId,
             },
             Post: {
@@ -764,7 +787,7 @@ async function createTopicByForumId(
                 Content: parsedData.content,
                 TopicId: newTopicId,
                 UserId: userId,
-                CreatedAt: new Date(now).toISOString(),
+                CreatedAt: Math.floor(Date.now() / 1000) * 1000,
             },
             message: "Topic and initial post created successfully.",
         }, { status: 201 });
@@ -901,8 +924,8 @@ async function updatePostById(
                     Username: updatedPost.UserName,
                     Email: updatedPost.UserEmail,
                 },
-                CreatedAt: new Date(updatedPost.CreatedAt * 1000).toISOString(),
-                UpdatedAt: new Date(updatedPost.UpdatedAt * 1000).toISOString(),
+                CreatedAt: Math.floor(Date.now() / 1000),
+                UpdatedAt: Math.floor(Date.now() / 1000),
             },
             message: "Post updated successfully.",
         }), { 
