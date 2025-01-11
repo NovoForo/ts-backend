@@ -1,6 +1,8 @@
 import isUserLoggedIn from "../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
 import getUserPermissions from "../middleware/getUserPermissions";
+import isUserAnAdministrator from "../middleware/isUserAnAdministrator";
+import isUserAModerator from "../middleware/isUserAModerator";
 
 async function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
 	if (!await isUserLoggedIn(request)) {
@@ -34,6 +36,8 @@ async function verifyCredentials(request: Request, params: Record<string, string
 			EmailAddress: user.EmailAddress,
 			image: ''
 		},
+		IsAdministrator: await isUserAnAdministrator(request, env),
+		IsModerator: await isUserAModerator(request, env),
 		permissions: permissions
 	}, { status: 200 });
 }

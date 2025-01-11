@@ -1,4 +1,5 @@
 import getUserFromJwt from "./getUserFromJwt";
+import getUserIdFromJwt from "./getUserIdFromJwt";
 
 /**
  * isUserAnAdministrator
@@ -7,16 +8,21 @@ import getUserFromJwt from "./getUserFromJwt";
  * @returns Promise<Boolean>
  */
 async function isUserAnAdministrator(request: Request, env: Env): Promise<Boolean> {
-    return false;
-    
-    const user = await getUserFromJwt(request, env);
-    const isAdministrator = user.UserIsAdministrator;
-
-    if (isAdministrator) {
-        return true;
-    } else {
-        return false;
+    const userId = await getUserIdFromJwt(request);
+    if (userId === null) {
+        throw new Error('User ID not found');
     }
+
+    const userGroupMemberships = await env.DB.prepare('SELECT * FROM UserGroupMemberships WHERE UserId = ?').bind(userId).all();
+
+    for (const userGroupMembership of userGroupMemberships.results) {
+        const userGroup = await env.DB.prepare('SELECT * FROM UserGroups WHERE Id = ?').bind(userGroupMembership.UserGroupId).first();
+        if (userGroup && userGroup.Name === 'Administrators') {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 export default isUserAnAdministrator;
