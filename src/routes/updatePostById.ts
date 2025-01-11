@@ -1,6 +1,7 @@
 import isUserLoggedIn from "../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
 import {z} from "zod";
+import getUserPermissions from "../middleware/getUserPermissions";
 
 async function updatePostById(
     request: Request,
@@ -9,6 +10,12 @@ async function updatePostById(
 ): Promise<Response> {
     if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized. Please log in to update the post.", { status: 401 });
+    }
+
+    // Check if the user has the required permissions to update the post.
+    const permissions = await getUserPermissions(request, env);
+    if (!permissions || !permissions.CanEditOwnPosts) {
+        return new Response("Forbidden. You do not have the required permissions to update the post.", { status: 403 });
     }
 
     const userIdStr = await getUserIdFromJwt(request);

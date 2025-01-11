@@ -1,9 +1,16 @@
 import isUserLoggedIn from "../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
+import getUserPermissions from "../middleware/getUserPermissions";
 
 async function deletePostById(request: Request, params: Record<string, string>, env: Env) {
     if (!await isUserLoggedIn(request)) {
         return Response.json({ success: false, message: "User not logged in." }, { status: 401 });
+    }
+
+    // Check that user has permission to delete their own posts
+    const permissions = await getUserPermissions(request, env);
+    if (!permissions || !permissions.CanDeleteOwnPosts) {
+        return Response.json({ success: false, message: "You do not have permission to delete posts." }, { status: 403 });
     }
 
     const userId = await getUserIdFromJwt(request);

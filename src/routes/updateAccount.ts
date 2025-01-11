@@ -2,10 +2,19 @@ import { z } from "zod";
 import isUserLoggedIn from "../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
 import { hashSync } from "bcrypt-edge";
+import getUserPermissions from "../middleware/getUserPermissions";
 
 async function updateAccount(request: Request, params: Record<string, string>, env: Env) {
 	if (!await isUserLoggedIn(request)) {
 		return new Response("Unauthorized", { status: 401 });
+	}
+
+	const permissions = await getUserPermissions(request, env);
+	if (permissions === null) {
+		return new Response("An error occurred while fetching user permissions", { status: 500 });
+	}
+	if (!permissions.CanEditSettings) {
+		return new Response("You do not have permission to edit your account settings", { status: 403 });
 	}
 
 	const userId = await getUserIdFromJwt(request);

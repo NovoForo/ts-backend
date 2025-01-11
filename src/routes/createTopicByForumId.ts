@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import isUserLoggedIn from '../middleware/isUserLoggedIn';
 import getUserIdFromJwt from '../middleware/getUserIdFromJwt';
+import getUserPermissions from '../middleware/getUserPermissions';
 
 async function createTopicByForumId(
     request: Request,
@@ -8,6 +9,12 @@ async function createTopicByForumId(
     env: Env
 ): Promise<Response> {
     if (!(await isUserLoggedIn(request))) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    // Check if user has permission to create topics
+    const permissions = await getUserPermissions(request, env);
+    if (!permissions || !permissions.CanCreateTopics) {
         return new Response("Unauthorized", { status: 401 });
     }
 

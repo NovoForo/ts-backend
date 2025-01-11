@@ -1,10 +1,19 @@
 import { z } from "zod";
 import isUserLoggedIn from "../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
+import getUserPermissions from "../middleware/getUserPermissions";
 
 async function replyToTopicById(request: Request, params: Record<string, string>, env: Env): Promise<Response> {
     if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized. Please log in to reply.", { status: 401 });
+    }
+
+    const permissions = await getUserPermissions(request, env);
+    if (!permissions) {
+        return new Response("An error occurred while fetching user permissions.", { status: 500 });
+    }
+    if (!(permissions).CanReply) {
+        return new Response("You do not have permission to reply.", { status: 403 });
     }
 
     const userIdStr = await getUserIdFromJwt(request);
