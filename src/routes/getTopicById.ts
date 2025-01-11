@@ -9,6 +9,7 @@ async function getTopicById(request: Request, params: Record<string, string>, en
     const { results } = await env.DB.prepare(
         `
         SELECT 
+            p.Id AS PostId,    
             p.Content AS PostContent,
             p.CreatedAt AS PostCreatedAt,
             p.UpdatedAt AS PostUpdatedAt,
