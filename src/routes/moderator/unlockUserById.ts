@@ -12,15 +12,21 @@ async function unlockUserById(request: Request, params: Record<string, string>, 
 
     const userId = params.userId;
 
+    // Remove user from locked group
     await env.DB.prepare(
         `
-        UPDATE Users
-        SET IsLocked = 0
-        WHERE Id = ?
+        DELETE FROM UserGroupMemberships
+        WHERE UserId = ?
         `
-    )
-    .bind(userId)
-    .run();
+    ).bind(userId).run().finally(async () => {
+        // Enroll user in the default group
+        await env.DB.prepare(
+            `
+            INSERT INTO UserGroupMemberships (UserId, UserGroupId)
+            VALUES (?, ?)
+            `
+        ).bind(userId, 2).run();
+    });
 
     return new Response("User unlocked", { status: 200 });
 }

@@ -23,16 +23,19 @@ async function banUserById(request: Request, params: Record<string, string>, env
     if (!user) {
         return new Response("User not found", { status: 404 });
     }
-
-    await env.DB.prepare(
-        `
-        UPDATE Users
-        SET IsBanned = 1
-        WHERE Id = ?
-        `
-    )
-    .bind(userId)
-    .run();
+    
+    // Disenroll User from all groups
+    await env.DB
+        .prepare(`DELETE FROM UserGroupMemberships WHERE UserId = ?`)
+        .bind(userId)
+        .run()
+        .finally(async () => {
+            // Enroll user in the banned group
+            await env.DB
+            .prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId) VALUES (?, ?)`)
+            .bind(userId, 5)
+            .run()
+        });
 
     return new Response("User has been banned", { status: 200 });
 }

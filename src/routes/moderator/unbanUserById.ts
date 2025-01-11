@@ -12,15 +12,21 @@ async function unbanUserById(request: Request, params: Record<string, string>, e
 
     const userId = params.userId;
 
+    // Remove user from banned group
     await env.DB.prepare(
         `
-        UPDATE Users
-        SET IsBanned = 0
-        WHERE Id = ?
+        DELETE FROM UserGroupMemberships
+        WHERE UserId = ?
         `
-    )
-    .bind(userId)
-    .run();
+    ).bind(userId).run().finally(async () => {
+        // Enroll user in the default group
+        await env.DB.prepare(
+            `
+            INSERT INTO UserGroupMemberships (UserId, UserGroupId)
+            VALUES (?, ?)
+            `
+        ).bind(userId, 2).run();
+    });
 
     return new Response("User unbanned", { status: 200 });
 }
