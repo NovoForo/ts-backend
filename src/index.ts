@@ -247,7 +247,6 @@ async function getCategories(request: Request, params: Record<string, string>, e
 			c.SortOrder,
 			c.CreatedAt,
 			c.UpdatedAt,
-			c.DeletedAt,
 			COALESCE(
 				json_group_array(
 					json_object(
@@ -257,7 +256,6 @@ async function getCategories(request: Request, params: Record<string, string>, e
 						'SortOrder', f.SortOrder,
 						'CreatedAt', f.CreatedAt,
 						'UpdatedAt', f.UpdatedAt,
-						'DeletedAt', f.DeletedAt
 					)
 				), 
 				'[]'
@@ -295,7 +293,6 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 			c.SortOrder,
 			c.CreatedAt,
 			c.UpdatedAt,
-			c.DeletedAt,
 			COALESCE(
 				json_group_array(
 					json_object(
@@ -305,7 +302,6 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 						'SortOrder', f.SortOrder,
 						'CreatedAt', f.CreatedAt,
 						'UpdatedAt', f.UpdatedAt,
-						'DeletedAt', f.DeletedAt
 					)
 				), 
 				'[]'
@@ -1210,8 +1206,7 @@ interface Category {
 	SortOrder: Number,
 	Forums: Forum[],
 	CreatedAt: Date,
-	UpdatedAt: Date | null,
-	DeletedAt: Date | null,
+	UpdatedAt: Date | null
 }
 
 interface Forum {
@@ -1223,8 +1218,7 @@ interface Forum {
 	CategoryId: Number,
 	Topics: Topic[],
 	CreatedAt: Date,
-	UpdatedAt: Date | null,
-	DeletedAt: Date | null,
+	UpdatedAt: Date | null
 }
 
 interface Topic {
@@ -1238,7 +1232,6 @@ interface Topic {
 	Posts: Post[],
 	CreatedAt: Date,
 	UpdatedAt: Date | null,
-	DeletedAt: Date | null,
 }
 
 interface Post {
@@ -1249,7 +1242,6 @@ interface Post {
 	UserId: Number,
 	CreatedAt: Date,
 	UpdatedAt: Date | null,
-	DeletedAt: Date | null,
 }
 
 interface User {
@@ -1264,7 +1256,6 @@ interface User {
 	IsAdministrator: Boolean,
 	CreatedAt: Date,
 	UpdatedAt: Date | null,
-	DeletedAt: Date | null,
 }
 
 // Middleware Functions
@@ -1325,8 +1316,6 @@ async function getUserFromJwt(request: Request, env: Env): Promise<any> {
                 u.IsAdministrator AS UserIsAdministrator,
 				u.CreatedAt AS CreatedAt,
 				u.UpdatedAt AS UpdatedAt,
-				u.DeletedAt AS DeletedAt,
-				u.DisabledAt AS DisabledAt
 			FROM 
 				Users u
 			WHERE
