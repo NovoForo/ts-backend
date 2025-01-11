@@ -17,7 +17,7 @@ async function isUserAModerator(request: Request, env: Env): Promise<Boolean> {
 
     for (const userGroupMembership of userGroupMemberships.results) {
         const userGroup = await env.DB.prepare('SELECT * FROM UserGroups WHERE Id = ?').bind(userGroupMembership.UserGroupId).first();
-        if (userGroup && userGroup.Name === 'Moderator') {
+        if (userGroup && userGroup.Name === 'Moderators') {
             return true;
         }
     }
