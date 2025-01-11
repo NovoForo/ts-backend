@@ -7,7 +7,9 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "resetLocalDB": "npx wrangler d1 execute novoforo-testing --file=./schema.sql --local",
+    "resetRemoteDB": "npx wrangler d1 execute novoforo-testing --file=./schema.sql --remote"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.5.2",

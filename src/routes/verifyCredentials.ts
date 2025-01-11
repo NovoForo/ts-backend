@@ -1,5 +1,6 @@
 import isUserLoggedIn from "../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
+import getUserPermissions from "../middleware/getUserPermissions";
 
 async function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
 	if (!await isUserLoggedIn(request)) {
@@ -19,14 +20,21 @@ async function verifyCredentials(request: Request, params: Record<string, string
 		return new Response("User not found", { status: 404 });
 	}
 
+	let permissions = null;
+	try {
+		permissions = await getUserPermissions(request, env);
+	} catch (error: any) {
+		console.error(error);
+		return new Response("An error occurred while fetching user permissions", { status: 500 });
+	}
+
 	return Response.json({
 		user: {
 			Username: user.Username,
 			EmailAddress: user.EmailAddress,
 			image: ''
 		},
-		isAdministrator: user.IsAdministrator,
-		isModerator: user.IsModerator
+		permissions: permissions
 	}, { status: 200 });
 }
 

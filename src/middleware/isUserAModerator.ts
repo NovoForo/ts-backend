@@ -7,6 +7,8 @@ import getUserFromJwt from "./getUserFromJwt";
  * @returns Promise<Boolean>
  */
 async function isUserAModerator(request: Request, env: Env): Promise<Boolean> {
+    return false;
+    
     const user = await getUserFromJwt(request, env);
     const isModerator = user.UserIsModerator;
 	

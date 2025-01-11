@@ -39,13 +39,6 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
             }
 
 			try {
-                let isAdministrator = false;
-                let isModerator = false;
-
-                if (usersCount == 0) {
-                    isAdministrator = true;
-                    isModerator = true;
-                }
 				const { results } = await env.DB.prepare(
 					
 					`
@@ -53,12 +46,17 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 						(Username,
 						PasswordHash,
 						EmailAddress,
-						CreatedAt, IsAdministrator, IsModerator)
-					VALUES (?, ?, ?, ?, ?, ?);
+						CreatedAt)
+					VALUES (?, ?, ?, ?);
 					`
 				)
-				.bind(username, passwordHash, email, Math.floor(Date.now() / 1000), isAdministrator, isModerator)
+				.bind(username, passwordHash, email, Math.floor(Date.now() / 1000))
 				.all();
+
+				// If this is the first user, make them an admin
+				if (usersCount == 0) {
+                    await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId) VALUES (?, ?)`).bind(1,4)
+                };
 
 				return new Response(JSON.stringify(results));
 			} catch (error: any) {
