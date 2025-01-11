@@ -55,8 +55,10 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 
 				// If this is the first user, make them an admin
 				if (usersCount == 0) {
-                    await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId) VALUES (?, ?)`).bind(1,4)
-                };
+					await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId, CreatedAt) VALUES (?, ?, strftime('%s', 'now'))`).bind(1, 3).run()
+                    await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId, CreatedAt) VALUES (?, ?, strftime('%s', 'now'))`).bind(1, 4).run()
+				};
+				await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId, CreatedAt) VALUES (?, ?, strftime('%s', 'now'))`).bind(results[0].Id, 2).run()
 
 				return new Response(JSON.stringify(results));
 			} catch (error: any) {

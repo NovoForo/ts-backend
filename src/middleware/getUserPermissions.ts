@@ -66,14 +66,41 @@ async function getUserPermissions(request: Request, env: Env): Promise<UserForum
     // Iterate through the user's groups and set permissions
     const userGroupMembershipPromises = userGroupMembership.map(async (membership) => {
         // Get the group
-        const userGroup = await env.DB.prepare('SELECT * FROM UserGroups WHERE id = ?').bind(membership.GroupId).first();
+        let userGroup = null;
+        try {
+            userGroup = await env.DB.prepare('SELECT * FROM UserGroups WHERE id = ?').bind(membership.UserGroupId).first();
+            // Process userGroup as needed
+        } catch (error) {
+            console.error('Error fetching user group:', error);
+        }
 
         // Get the group permissions
         let groupPermissions: UserForumPermissions | null = null;
-        if (userGroup) {
-            const groupPermissionsResult = await env.DB.prepare('SELECT * FROM UserGroupPermissions WHERE UserGroupId = ?').bind(userGroup.id).all();
-            groupPermissions = groupPermissionsResult.results.length > 0 ? groupPermissionsResult.results[0] as unknown as UserForumPermissions : null;
+        let groupPermissionsResult = null;
+        if (!userGroup || userGroup.id === undefined || userGroup.id === null) {
+            console.error('Invalid userGroup or missing id:', userGroup);
+            groupPermissions = null;
+        } else {
+            try {
+                groupPermissionsResult = await env.DB.prepare('SELECT * FROM UserGroupPermissions WHERE UserGroupId = ?')
+                    .bind(userGroup.id)
+                    .all();
+
+                if (!groupPermissionsResult || !groupPermissionsResult.results) {
+                    console.error('Invalid result structure:', groupPermissionsResult);
+                    groupPermissions = null;
+                } else {
+                    groupPermissions = groupPermissionsResult.results.length > 0 
+                        ? (groupPermissionsResult.results[0] as unknown as UserForumPermissions) 
+                        : null;
+                }
+            } catch (error: any) {
+                console.error('Error fetching group permissions:', error.message);
+                console.error(error.stack);
+                groupPermissions = null;
+            }
         }
+
 
         // Grant the permission if true
         if (groupPermissions) {
