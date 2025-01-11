@@ -15,7 +15,7 @@ async function deleteTopicById(request: Request, params: Record<string, string>,
     await env.DB.prepare(
         `
         DELETE FROM Topics
-        WHERE TopicId = ?
+        WHERE Id = ?
         `
     )
     .bind(topicId)
@@ -24,7 +24,7 @@ async function deleteTopicById(request: Request, params: Record<string, string>,
     await env.DB.prepare(
         `
         DELETE FROM Posts
-        WHERE TopicId = ?
+        WHERE Id = ?
         `
     )
     .bind(topicId)

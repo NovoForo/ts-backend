@@ -14,7 +14,7 @@ async function banUserById(request: Request, params: Record<string, string>, env
     const user = await env.DB.prepare(
         `
         SELECT * FROM Users
-        WHERE UserId = ?
+        WHERE Id = ?
         `
     )
     .bind(userId)
@@ -27,8 +27,8 @@ async function banUserById(request: Request, params: Record<string, string>, env
     await env.DB.prepare(
         `
         UPDATE Users
-        SET UserIsBanned = 1
-        WHERE UserId = ?
+        SET IsBanned = 1
+        WHERE Id = ?
         `
     )
     .bind(userId)
