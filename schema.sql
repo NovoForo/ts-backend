@@ -5,8 +5,7 @@ CREATE TABLE Categories (
     Description TEXT,
     SortOrder INTEGER NOT NULL,
     CreatedAt INTEGER NOT NULL,
-    UpdatedAt INTEGER,
-    DeletedAt INTEGER
+    UpdatedAt INTEGER
 );
 INSERT INTO Categories (Name, Description, SortOrder, CreatedAt) VALUES ('General', 'General discussion', 1, strftime('%s', 'now'));
 
@@ -16,10 +15,10 @@ CREATE TABLE Forums (
     Name TEXT NOT NULL,
     Description TEXT,
     SortOrder INTEGER NOT NULL,
+    IsReadOnly BOOLEAN NOT NULL DEFAULT 0,
     CategoryId INTEGER NOT NULL,
     CreatedAt INTEGER NOT NULL,
     UpdatedAt INTEGER,
-    DeletedAt INTEGER,
     FOREIGN KEY (CategoryId) REFERENCES Categories(Id) ON DELETE CASCADE
 );
 INSERT INTO Forums (Name, Description, SortOrder, CategoryId, CreatedAt) VALUES ('General Discussion', 'General discussion', 1, 1, strftime('%s', 'now'));
@@ -28,24 +27,25 @@ DROP TABLE IF EXISTS Topics;
 CREATE TABLE Topics (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     Title TEXT NOT NULL,
-    Description TEXT,
+    IsWithheldForModeratorReview BOOLEAN NOT NULL DEFAULT 0,
+    IsClosedByAuthor BOOLEAN NOT NULL DEFAULT 0,
+    IsLockedByModerator BOOLEAN NOT NULL DEFAULT 0,
+    IsPinned BOOLEAN NOT NULL DEFAULT 0,
     ForumId INTEGER NOT NULL,
     CreatedAt INTEGER NOT NULL,
     UpdatedAt INTEGER,
-    DeletedAt INTEGER,
     FOREIGN KEY (ForumId) REFERENCES Forums(Id) ON DELETE CASCADE
 );
 
 DROP TABLE IF EXISTS Posts;
 CREATE TABLE Posts (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
-    Title TEXT NOT NULL,
     Content TEXT NOT NULL,
+    IsWithheldForModeratorReview BOOLEAN NOT NULL DEFAULT 0,
     TopicId INTEGER NOT NULL,
     UserId INTEGER NOT NULL,
     CreatedAt INTEGER NOT NULL,
     UpdatedAt INTEGER,
-    DeletedAt INTEGER,
     FOREIGN KEY (TopicId) REFERENCES Topics(Id) ON DELETE CASCADE,
     FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE SET NULL
 );
@@ -56,10 +56,11 @@ CREATE TABLE Users (
     Username TEXT NOT NULL UNIQUE,
     PasswordHash TEXT NOT NULL,
     EmailAddress TEXT NOT NULL UNIQUE,
+    HoldPostsForReview BOOLEAN NOT NULL DEFAULT 0,
+    IsLocked BOOLEAN NOT NULL DEFAULT 0,
+    IsBanned BOOLEAN NOT NULL DEFAULT 0,
     IsModerator BOOLEAN NOT NULL DEFAULT 0,
     IsAdministrator BOOLEAN NOT NULL DEFAULT 0,
     CreatedAt INTEGER NOT NULL,
-    UpdatedAt INTEGER,
-    DeletedAt INTEGER,
-    DisabledAt INTEGER
+    UpdatedAt INTEGER
 );

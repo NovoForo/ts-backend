@@ -362,8 +362,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                             'CreatedAt', p.CreatedAt,
                             'User', json_object(
                                 'Id', u.Id,
-                                'Username', u.Username,
-                                'Email', u.EmailAddress
+                                'Username', u.Username
                             )
                         )
                     ), 
@@ -443,13 +442,11 @@ async function getTopicById(request: Request, params: Record<string, string>, en
         `
         SELECT 
             p.Id AS PostId,
-            p.Title AS PostTitle,
             p.Content AS PostContent,
             p.CreatedAt AS PostCreatedAt,
             p.UpdatedAt AS PostUpdatedAt,
             t.Id AS TopicId,
             t.Title AS TopicTitle,
-            t.Description AS TopicDescription,
             t.CreatedAt AS TopicCreatedAt,
             t.UpdatedAt AS TopicUpdatedAt,
             u.Id AS UserId,
@@ -481,7 +478,6 @@ async function getTopicById(request: Request, params: Record<string, string>, en
         
         return {
             Id: row.PostId,
-            Title: row.PostTitle,
             Content: row.PostContent,
             CreatedAt: row.PostCreatedAt * 1000,
             UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
@@ -599,16 +595,14 @@ async function replyToTopicById(request: Request, params: Record<string, string>
 
     const { content } = parsedInput;
 
-    const title = content.length > 20 ? content.substring(0, 20) + '...' : content;
-
     try {
         const insertPostResult = await env.DB.prepare(`
             INSERT INTO Posts
-                (Title, Content, TopicId, UserId, CreatedAt)
+                (Content, TopicId, UserId, CreatedAt)
             VALUES
-                (?, ?, ?, ?, ?);
+                (?, ?, ?, ?);
         `)
-            .bind(title, content, topicId, userId, Math.floor(Date.now() / 1000))
+            .bind(content, topicId, userId, Math.floor(Date.now() / 1000))
             .run();
 
         console.log("Insert Post Result:", insertPostResult);
@@ -764,17 +758,15 @@ async function createTopicByForumId(
 
         const newTopicId = topicIdResult.Id;
 
-        const postTitle = `Reply to: ${parsedData.title}`;
-
         const insertPostResult = await env.DB.prepare(
             `
             INSERT INTO Posts
-                (Title, Content, TopicId, UserId, CreatedAt)
+                (Content, TopicId, UserId, CreatedAt)
             VALUES 
-                (?, ?, ?, ?, ?);
+                (?, ?, ?, ?);
             `
         )
-        .bind(postTitle, parsedData.content, newTopicId, userId, Math.floor(Date.now() / 1000))
+        .bind(parsedData.content, newTopicId, userId, Math.floor(Date.now() / 1000))
         .run();
 
         const postIdResult = await env.DB.prepare(
@@ -815,7 +807,6 @@ async function createTopicByForumId(
             },
             Post: {
                 Id: newPostId,
-                Title: postTitle,
                 Content: parsedData.content,
                 TopicId: newTopicId,
                 UserId: userId,
@@ -869,8 +860,6 @@ async function updatePostById(
             .bind(postId)
             .all();
 
-        console.log("Post Results:", postResults);
-
         if (postResults.length === 0) {
             return new Response("Post not found.", { status: 404 });
         }
@@ -903,19 +892,15 @@ async function updatePostById(
 
         const { content } = parsedInput;
 
-        const title = content.length > 20 ? content.substring(0, 20) + '...' : content;
-
         const updatedAt = Math.floor(Date.now() / 1000);
 
         const updateResult = await env.DB.prepare(`
             UPDATE Posts
-            SET Content = ?, Title = ?, UpdatedAt = ?
+            SET Content = ?, UpdatedAt = ?
             WHERE Id = ?;
         `)
-            .bind(content, title, updatedAt, postId)
+            .bind(content, updatedAt, postId)
             .run();
-
-        console.log("Update Result:", updateResult);
 
         const { results: updatedPostResults } = await env.DB.prepare(`
             SELECT 
@@ -937,7 +922,6 @@ async function updatePostById(
             .bind(postId)
             .all();
 
-        console.log("Updated Post Results:", updatedPostResults);
 
         if (updatedPostResults.length === 0) {
             return new Response("Failed to retrieve the updated post.", { status: 500 });
@@ -1235,6 +1219,7 @@ interface Forum {
 	Name: String,
 	Description: String,
 	SortOrder: Number
+    IsReadOnly: Boolean,
 	CategoryId: Number,
 	Topics: Topic[],
 	CreatedAt: Date,
@@ -1245,7 +1230,10 @@ interface Forum {
 interface Topic {
 	Id: Number,
 	Title: String,
-	Description: String
+	IsWithheldForModeratorReview: Boolean,
+    IsClosedByAuthor: Boolean,
+    IsLockedByModerator: Boolean,
+    IsPinned: Boolean,
 	ForumId: Number,
 	Posts: Post[],
 	CreatedAt: Date,
@@ -1255,8 +1243,8 @@ interface Topic {
 
 interface Post {
 	Id: Number,
-	Title: String,
 	Content: String,
+    IsHeldForModeratorReview: Boolean,
 	TopicId: Number,
 	UserId: Number,
 	CreatedAt: Date,
@@ -1270,11 +1258,13 @@ interface User {
 	PasswordHash: String,
 	EmailAddress: String,
 	IsModerator: Boolean,
+    HoldPostsForReview: Boolean,
+    IsLocked: Boolean,
+    IsBanned: Boolean,
 	IsAdministrator: Boolean,
 	CreatedAt: Date,
 	UpdatedAt: Date | null,
 	DeletedAt: Date | null,
-	DisabledAt: Date | null,
 }
 
 // Middleware Functions
