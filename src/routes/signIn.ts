@@ -40,6 +40,69 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 
 				const user: any = results[0]; // TODO: Fix use of any type
 
+                // Check if user is in admin group
+                let isAdministrator = false;
+                let isModerator = false;
+
+                try {
+                    const { results } = await env.DB.prepare(
+                        `
+                        SELECT * FROM UserGroupMemberships
+                        WHERE UserId = ?
+                        `
+                    )
+                    .bind(user.Id)
+                    .all();
+
+                    for (const userGroupMembership of results) {
+                        const userGroup = await env.DB.prepare(
+                            `
+                            SELECT * FROM UserGroups
+                            WHERE Id = ?
+                            `
+                        )
+                        .bind(userGroupMembership.UserGroupId)
+                        .first();
+
+                        if (userGroup && userGroup.Name === 'Administrators') {
+                            isAdministrator = true;
+                        }
+                    }
+                } catch (error: any) {
+                    console.error(error);
+                    return new Response("An error occurred while querying the database.", { status: 500 });
+                }
+
+                // Check if user is in moderator group
+                try {
+                    const { results } = await env.DB.prepare(
+                        `
+                        SELECT * FROM UserGroupMemberships
+                        WHERE UserId = ?
+                        `
+                    )
+                    .bind(user.Id)
+                    .all();
+
+                    for (const userGroupMembership of results) {
+                        const userGroup = await env.DB.prepare(
+                            `
+                            SELECT * FROM UserGroups
+                            WHERE Id = ?
+                            `
+                        )
+                        .bind(userGroupMembership.UserGroupId)
+                        .first();
+
+                        if (userGroup && userGroup.Name === 'Moderators') {
+                            isModerator = true;
+                        }
+                    }
+                } catch (error: any) {
+                    console.error(error);
+                    return new Response("An error occurred while querying the database.", { status: 500 });
+                }
+
 				const passwordMatch = await compareSync(password, user.PasswordHash);
                 if (!passwordMatch) {
                     return new Response("Invalid credentials.", { status: 401 });
@@ -54,8 +117,8 @@ async function signIn(request: Request, params: Record<string, string>, env: Env
 						email: user.EmailAddress,
 						image: "https://www.gravatar.com/avatar/" + await md5(user.EmailAddress),
 						token: token,
-						isAdministrator: user.IsAdministrator,
-						isModerator: user.IsModerator
+						isAdministrator: isAdministrator,
+						isModerator: isModerator
 					}, { status: 200 });
 				}
             } catch (error: any) {
