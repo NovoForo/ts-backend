@@ -255,7 +255,7 @@ async function getCategories(request: Request, params: Record<string, string>, e
 						'Description', f.Description,
 						'SortOrder', f.SortOrder,
 						'CreatedAt', f.CreatedAt,
-						'UpdatedAt', f.UpdatedAt,
+						'UpdatedAt', f.UpdatedAt
 					)
 				), 
 				'[]'
@@ -301,7 +301,7 @@ async function getCategoryById(request: Request, params: Record<string, string>,
 						'Description', f.Description,
 						'SortOrder', f.SortOrder,
 						'CreatedAt', f.CreatedAt,
-						'UpdatedAt', f.UpdatedAt,
+						'UpdatedAt', f.UpdatedAt
 					)
 				), 
 				'[]'
@@ -1421,14 +1421,23 @@ async function handleRequestWithCors(request: Request, env: Env): Promise<Respon
 	const headers = new Headers(response.headers);
 
 	headers.set("Access-Control-Allow-Origin", "*");
-	headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+	headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, UPDATE, DELETE, OPTIONS");
 	headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-	return new Response(response.body, {
-		status: response.status,
-		statusText: response.statusText,
-		headers,
-	});
+    if (request.method === "OPTIONS") {
+        return new Response(response.body, {
+            status: 200,
+            statusText: "Ok",
+            headers,
+        });
+    } else {
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+        });
+    }
+    
 }
 
 export default {
