@@ -30,6 +30,7 @@ import unlockUserById from "./routes/moderator/unlockUserById";
 import modEditPostById from "./routes/moderator/modEditPostById";
 import isUserLoggedIn from "./middleware/isUserLoggedIn";
 import isUserAnAdministrator from "./middleware/isUserAnAdministrator";
+import withholdTopicById from "./routes/moderator/withholdTopicById";
 
 function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
@@ -75,6 +76,7 @@ type RouteHandler = (request: Request, params?: Record<string, string>, env?: En
 const routes: Record<string, (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>> = {	
 	// AI Testing
     "GET /ai-test": (request, params = {}, env) => env ? aiTestResponse(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    
     // Account Actions
     "POST /sign-in": (request, params = {}, env) => env ? signIn(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /sign-up": (request, params = {}, env) => env ? signUp(request, params, env) : new Response("Environment not defined", { status: 500 }),
@@ -102,6 +104,7 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
 
     // Moderator Actions
     "GET /moderator/topics": (request, params = {}, env) => env ? getTopicsForModeration(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "PATCH /moderator/topics/:topicId/withhold": (request, params = {}, env) => env ? withholdTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/topics/:topicId/release": (request, params = {}, env) => env ? releaseTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/topics/:topicId/lock": (request, params = {}, env) => env ? lockTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/topics/:topicId/close": (request, params = {}, env) => env ? closeTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
