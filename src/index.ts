@@ -27,6 +27,9 @@ import modEditTopicById from "./routes/moderator/modEditTopicById";
 import lockUserById from "./routes/moderator/lockUserById";
 import unbanUserById from "./routes/moderator/unbanUserById";
 import unlockUserById from "./routes/moderator/unlockUserById";
+import modEditPostById from "./routes/moderator/modEditPostById";
+import isUserLoggedIn from "./middleware/isUserLoggedIn";
+import isUserAnAdministrator from "./middleware/isUserAnAdministrator";
 
 function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
@@ -34,6 +37,32 @@ function updateCategoryById(request: Request, params: Record<string, string>, en
 
 function deleteCategoryById(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
+}
+
+
+async function aiTestResponse(request: Request, params: Record<string, string>, env: Env) {
+    if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!await isUserAnAdministrator(request, env)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!env.AI) {
+        return new Response("AI not enabled", { status: 500 });
+    }
+
+    const inputs = {
+        text: 'Hey Bob you wrote an interesting post on pizza. I love pizza but I hate pineapples. Can you imagine pineapples on pizza?',  
+    };
+
+    const response = await env.AI.run(
+        '@cf/huggingface/distilbert-sst-2-int8',
+        inputs,
+    );
+
+    return new Response(JSON.stringify(response), { status: 200 });
 }
 
 /**
@@ -44,7 +73,9 @@ function deleteCategoryById(request: Request, params: Record<string, string>, en
  */
 type RouteHandler = (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>;
 const routes: Record<string, (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>> = {	
-	// Account Actions
+	// AI Testing
+    "GET /ai-test": (request, params = {}, env) => env ? aiTestResponse(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    // Account Actions
     "POST /sign-in": (request, params = {}, env) => env ? signIn(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /sign-up": (request, params = {}, env) => env ? signUp(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /forgot-password": (request, params = {}, env) => env ? forgotPassword(request, params, env) : new Response("Environment not defined", { status: 500 }),

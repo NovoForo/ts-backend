@@ -3,11 +3,11 @@ import isUserLoggedIn from "../../middleware/isUserLoggedIn";
 import {z} from "zod";
 
 async function modEditPostById(request: Request, params: Record<string, string>, env: Env) {
-    if (!isUserLoggedIn(request)) {
+    if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized", { status: 401 });
     }
 
-    if (!isUserAModerator(request, env)) {
+    if (await !isUserAModerator(request, env)) {
         return new Response("Unauthorized", { status: 401 });
     }
 
