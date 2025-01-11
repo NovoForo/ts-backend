@@ -32,7 +32,6 @@ async function createTopicByForumId(
 
     const topicSchema = z.object({
         title: z.string().min(1, "Title is required."),
-        description: z.string().optional(),
         content: z.string().min(1, "Content is required."),
     });
 
@@ -61,12 +60,12 @@ async function createTopicByForumId(
         const insertTopicResult = await env.DB.prepare(
             `
             INSERT INTO Topics
-                (Title, Description, ForumId, CreatedAt)
+                (Title, ForumId, CreatedAt)
             VALUES 
-                (?, ?, ?, ?);
+                (?, ?, ?);
             `
         )
-        .bind(parsedData.title, parsedData.description ?? null, forumId, Math.floor(Date.now() / 1000))
+        .bind(parsedData.title, forumId, Math.floor(Date.now() / 1000))
         .run();
 
         const topicIdResult = await env.DB.prepare(
@@ -128,7 +127,6 @@ async function createTopicByForumId(
             Topic: {
                 Id: newTopicId,
                 Title: parsedData.title,
-                Description: parsedData.description ?? "",
                 ForumId: forumId,
                 CreatedAt: Math.floor(Date.now()),
                 UserId: userId,

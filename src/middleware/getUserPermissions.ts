@@ -77,13 +77,13 @@ async function getUserPermissions(request: Request, env: Env): Promise<UserForum
         // Get the group permissions
         let groupPermissions: UserForumPermissions | null = null;
         let groupPermissionsResult = null;
-        if (!userGroup || userGroup.id === undefined || userGroup.id === null) {
+        if (!userGroup || userGroup.Id === undefined || userGroup.Id === null) {
             console.error('Invalid userGroup or missing id:', userGroup);
             groupPermissions = null;
         } else {
             try {
                 groupPermissionsResult = await env.DB.prepare('SELECT * FROM UserGroupPermissions WHERE UserGroupId = ?')
-                    .bind(userGroup.id)
+                    .bind(userGroup.Id)
                     .all();
 
                 if (!groupPermissionsResult || !groupPermissionsResult.results) {

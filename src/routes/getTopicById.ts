@@ -9,7 +9,6 @@ async function getTopicById(request: Request, params: Record<string, string>, en
     const { results } = await env.DB.prepare(
         `
         SELECT 
-            p.Id AS PostId,
             p.Content AS PostContent,
             p.CreatedAt AS PostCreatedAt,
             p.UpdatedAt AS PostUpdatedAt,
@@ -20,8 +19,6 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             u.Id AS UserId,
             u.Username AS UserName,
             u.EmailAddress AS UserEmail,
-            u.IsAdministrator AS UserIsAdministrator,
-            u.IsModerator AS UserIsModerator,
             COUNT(*) OVER() AS TotalCount
         FROM 
             Posts p
@@ -52,7 +49,6 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             Topic: {
                 Id: row.TopicId,
                 Title: row.TopicTitle,
-                Description: row.TopicDescription,
                 CreatedAt: row.TopicCreatedAt * 1000,
                 UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
             },
@@ -60,8 +56,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
                 Id: row.UserId,
                 Username: row.UserName,
                 Email: hash,
-                IsAdministrator: row.UserIsAdministrator == 1 ? true : false,
-                IsModerator: row.UserIsModerator == 1 ? true : false,
+                IsAdministrator: false,
+                IsModerator: false,
             }
         }
     }));

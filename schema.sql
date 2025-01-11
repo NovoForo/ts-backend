@@ -190,6 +190,7 @@ CREATE TABLE UserGroupPermissions (
     UpdatedAt INTEGER,
     FOREIGN KEY (UserGroupId) REFERENCES UserGroups(Id) ON DELETE CASCADE
 );
+INSERT INTO UserGroupPermissions (UserGroupId, CanView, CanCreateTopics, CanReply, CanEditOwnPosts, CanDeleteOwnPosts, CanFlagPosts, CanLikePosts, CreatedAt) VALUES (2, 1, 1, 1, 0, 0, 1, 1, strftime('%s', 'now'));
 
 DROP TABLE IF EXISTS Users;
 CREATE TABLE Users (
