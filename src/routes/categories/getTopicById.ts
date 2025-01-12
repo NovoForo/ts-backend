@@ -1,10 +1,33 @@
 import getQueryParams from "../../middleware/getQueryParams";
 import md5 from "../../utils/md5";
+import isUserLoggedIn from '../../middleware/isUserLoggedIn';
+import getUserIdFromJwt from '../../middleware/getUserIdFromJwt';
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
     const queryParams = getQueryParams(request.url);
     const skip = queryParams["skip"] || 0;
     const limit = queryParams["limit"] || 10;
+
+		if (await isUserLoggedIn(request)) {
+			// Check if the User has viewed this topic before
+			const userId = await getUserIdFromJwt(request);
+			const _topicId = params.topicId; // Underscore because I think topicId gets declared elsewhere in this function
+			const userHasViewedTopicAlready = await env.DB.prepare(
+				`SELECT * FROM TopicViews WHERE TopicID = ? AND UserId = ?`)
+				.bind(_topicId, userId).first();
+
+			// User has not viewed this topic before, create a TopicView
+			if (userHasViewedTopicAlready == null) {
+				try {
+					await env.DB.prepare(
+						`INSERT INTO TopicViews(TopicId, UserId, CreatedAt) VALUES(?, ?, strftime('%s', 'now'))`
+					).bind(_topicId, userId).run();
+				} catch (error: any) {
+					console.error(error);
+					return new Response("An exception occurred while saving your view of the topic!", { status: 500 })
+				}
+			}
+		}
 
     const { results } = await env.DB.prepare(
         `
