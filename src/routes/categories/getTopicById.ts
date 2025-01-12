@@ -45,7 +45,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             u.EmailAddress AS UserEmail,
             json_group_array(pl.UserId) AS PostLikeUserIds,
             COUNT(*) OVER() AS TotalCount,
-            COUNT(pl.Id) AS LikesCount
+            COUNT(pl.Id) AS LikesCount,
+						(SELECT COUNT(*) FROM TopicViews tv WHERE tv.TopicId = t.Id) AS TopicViewsCount
         FROM
             Posts p
         LEFT JOIN
@@ -81,6 +82,7 @@ async function getTopicById(request: Request, params: Record<string, string>, en
                 Title: row.TopicTitle,
                 CreatedAt: row.TopicCreatedAt * 1000,
                 UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
+								Views: row.TopicViewsCount,
             },
             User: {
                 Id: row.UserId,
