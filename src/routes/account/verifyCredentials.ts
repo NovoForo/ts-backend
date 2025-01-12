@@ -1,8 +1,8 @@
-import isUserLoggedIn from "../middleware/isUserLoggedIn";
-import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
-import getUserPermissions from "../middleware/getUserPermissions";
-import isUserAnAdministrator from "../middleware/isUserAnAdministrator";
-import isUserAModerator from "../middleware/isUserAModerator";
+import isUserLoggedIn from "../../middleware/isUserLoggedIn";
+import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
+import getUserPermissions from "../../middleware/getUserPermissions";
+import isUserAnAdministrator from "../../middleware/isUserAnAdministrator";
+import isUserAModerator from "../../middleware/isUserAModerator";
 
 async function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
 	if (!await isUserLoggedIn(request)) {

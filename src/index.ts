@@ -1,8 +1,8 @@
-import signIn from "./routes/signIn";
-import signUp from "./routes/signUp";
-import forgotPassword from "./routes/forgotPassword";
-import verifyCredentials from "./routes/verifyCredentials";
-import updateAccount from "./routes/updateAccount";
+import signIn from "./routes/account/signIn";
+import signUp from "./routes/account/signUp";
+import forgotPassword from "./routes/account/forgotPassword";
+import verifyCredentials from "./routes/account/verifyCredentials";
+import updateAccount from "./routes/account/updateAccount";
 import getCategories from "./routes/getCategories";
 import getCategoryById from "./routes/getCategoryById";
 import getTopicsByForumId from "./routes/getTopicsByForumId";
@@ -11,8 +11,8 @@ import getTopicById from "./routes/getTopicById";
 import createTopicByForumId from "./routes/createTopicByForumId";
 import updatePostById from "./routes/updatePostById";
 import deletePostById from "./routes/deletePostById";
-import createCategory from "./routes/createCategory";
-import createForum from "./routes/createForum";
+import createCategory from "./routes/administrator/createCategory";
+import createForum from "./routes/administrator/createForum";
 import getTopicsForModeration from "./routes/moderator/getTopicsForModeration";
 import releaseTopicById from "./routes/moderator/releaseTopicById";
 import lockTopicById from "./routes/moderator/lockTopicById";
@@ -57,7 +57,7 @@ async function aiTestResponse(request: Request, params: Record<string, string>, 
     }
 
     const inputs = {
-        text: 'Hey Bob you wrote an interesting post on pizza. I love pizza but I hate pineapples. Can you imagine pineapples on pizza?',  
+        text: 'Hey Bob you wrote an interesting post on pizza. I love pizza but I hate pineapples. Can you imagine pineapples on pizza?',
     };
 
     const response = await env.AI.run(
@@ -75,32 +75,38 @@ async function aiTestResponse(request: Request, params: Record<string, string>, 
  * @returns {Response}
  */
 type RouteHandler = (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>;
-const routes: Record<string, (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>> = {	
+const routes: Record<string, (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>> = {
 	// AI Testing
     "GET /ai-test": (request, params = {}, env) => env ? aiTestResponse(request, params, env) : new Response("Environment not defined", { status: 500 }),
-    
-    // Account Actions
+
+    // Sign-in, Sign-up, Forgot-Password, VerifyCredentials, Update Account
     "POST /sign-in": (request, params = {}, env) => env ? signIn(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /sign-up": (request, params = {}, env) => env ? signUp(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /forgot-password": (request, params = {}, env) => env ? forgotPassword(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /s/verify_credentials": (request, params = {}, env) => env ? verifyCredentials(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /s/account": (request, params = {}, env) => env ? updateAccount(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
-	// Public Actions
+	// List Categories, List Forums, Get Topics for Forum, Get Topic By ID
     "GET /categories": (request, params = {}, env) => env ? getCategories(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "GET /categories/:categoryId": (request, params = {}, env) => env ? getCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "GET /categories/:categoryId/forums/:forumId": (request, params = {}, env) => env ? getTopicsByForumId(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "GET /categories/:categoryId/forums/:forumId/topics/:topicId": (request, params = {}, env) => env ? getTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
-	// Authenticated Actions
+	// ACreate Topics, Create Replies, Update Posts, Delete Posts
     "POST /s/categories/:categoryID/forums/:forumID/topics/:topicId": (request, params = {}, env) => env ? replyToTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /s/categories/:categoryID/forums/:forumID/topics": (request, params = {}, env) => env ? createTopicByForumId(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env) => env ? updatePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "DELETE /s/categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId": (request, params = {}, env) => env ? deletePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
+    // Direct Messaging
+
     // Post Like/Dislike
     "POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/like": (request, params = {}, env) => env ? likePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/unlike": (request, params = {}, env) => env ? unlikePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+
+    // Post Flags (Notify Site Moderators to review a post)
+
+    // User Profiles
 
 	// Admin Actions
     "POST /a/categories": (request, params = {}, env) => env ? createCategory(request, params, env) : new Response("Environment not defined", { status: 500 }),
@@ -131,9 +137,9 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
 /**
  * matchRoute
  * Matches the route path with the actual path.
- * @param routePath 
- * @param actualPath 
- * @returns 
+ * @param routePath
+ * @param actualPath
+ * @returns
  */
 function matchRoute(routePath: string, actualPath: string): { isMatch: boolean; params: Record<string, string> } {
 	const routeParts = routePath.split("/");
@@ -158,8 +164,8 @@ function matchRoute(routePath: string, actualPath: string): { isMatch: boolean; 
 
 /**
  * handeRequest
- * @param request 
- * @param env 
+ * @param request
+ * @param env
  * @returns Promise<Response>
  */
 function handleRequest(request: Request, env: Env): Promise<Response> {
@@ -183,7 +189,7 @@ function handleRequest(request: Request, env: Env): Promise<Response> {
  * handleRequestWithCors
  * Handles the request and attaches CORS headers to the returned response.
  * @param request
- * @param env 
+ * @param env
  * @returns Promise<Response>
  */
 async function handleRequestWithCors(request: Request, env: Env): Promise<Response> {
@@ -207,7 +213,7 @@ async function handleRequestWithCors(request: Request, env: Env): Promise<Respon
             headers,
         });
     }
-    
+
 }
 
 export default {

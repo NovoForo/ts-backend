@@ -1,8 +1,8 @@
 import { z } from "zod";
-import isUserLoggedIn from "../middleware/isUserLoggedIn";
-import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
+import isUserLoggedIn from "../../middleware/isUserLoggedIn";
+import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import { hashSync } from "bcrypt-edge";
-import getUserPermissions from "../middleware/getUserPermissions";
+import getUserPermissions from "../../middleware/getUserPermissions";
 
 async function updateAccount(request: Request, params: Record<string, string>, env: Env) {
 	if (!await isUserLoggedIn(request)) {
