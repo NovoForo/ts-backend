@@ -32,6 +32,7 @@ async function verifyCredentials(request: Request, params: Record<string, string
 
 	return Response.json({
 		user: {
+			Id: user.Id,
 			Username: user.Username,
 			EmailAddress: user.EmailAddress,
 			image: ''

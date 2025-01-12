@@ -29,6 +29,12 @@ interface UserForumPermissions {
     CanEditSettings: Boolean,
 } 
 
+/**
+ * getUserPermissions
+ * @param request 
+ * @param env 
+ * @returns 
+ */
 async function getUserPermissions(request: Request, env: Env): Promise<UserForumPermissions> {
     const userId = await getUserIdFromJwt(request);
     // const user = await env.DB.prepare('SELECT * FROM Users WHERE id = ?').bind(userId).first();

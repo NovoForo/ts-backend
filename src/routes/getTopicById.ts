@@ -20,13 +20,17 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             u.Id AS UserId,
             u.Username AS UserName,
             u.EmailAddress AS UserEmail,
-            COUNT(*) OVER() AS TotalCount
+            json_group_array(pl.UserId) AS PostLikeUserIds,
+            COUNT(*) OVER() AS TotalCount,
+            COUNT(pl.Id) AS LikesCount
         FROM 
             Posts p
         LEFT JOIN 
             Topics t ON p.TopicId = t.Id
         LEFT JOIN
             Users u ON p.UserId = u.Id
+        LEFT JOIN
+            PostLikes pl ON pl.PostId = p.Id
         WHERE
             p.TopicId = ?
         GROUP BY 
@@ -47,6 +51,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             Content: row.PostContent,
             CreatedAt: row.PostCreatedAt * 1000,
             UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
+            LikeCount: row.LikesCount,
+            Likes:JSON.parse(row.PostLikeUserIds),
             Topic: {
                 Id: row.TopicId,
                 Title: row.TopicTitle,
