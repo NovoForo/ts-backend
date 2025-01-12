@@ -1,8 +1,5 @@
-import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import isUserAModerator from "../../middleware/isUserAModerator";
-import isUserAnAdministrator from "../../middleware/isUserAnAdministrator";
 import isUserLoggedIn from "../../middleware/isUserLoggedIn";
-import getTopicById from "../getTopicById";
 
 async function lockTopicById(request: Request, params: Record<string, string>, env: Env) {
     if (!await isUserLoggedIn(request)) {

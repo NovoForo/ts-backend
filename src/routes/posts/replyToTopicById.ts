@@ -1,7 +1,7 @@
 import { z } from "zod";
-import isUserLoggedIn from "../middleware/isUserLoggedIn";
-import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
-import getUserPermissions from "../middleware/getUserPermissions";
+import isUserLoggedIn from "../../middleware/isUserLoggedIn";
+import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
+import getUserPermissions from "../../middleware/getUserPermissions";
 
 async function replyToTopicById(request: Request, params: Record<string, string>, env: Env): Promise<Response> {
     if (!await isUserLoggedIn(request)) {
@@ -139,7 +139,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
         const newPostId = postIdResult.Id;
 
         const { results: newPostResults } = await env.DB.prepare(`
-            SELECT 
+            SELECT
                 p.Id AS PostId,
                 p.Content AS PostContent,
                 p.TopicId,
@@ -147,11 +147,11 @@ async function replyToTopicById(request: Request, params: Record<string, string>
                 p.CreatedAt,
                 u.Username AS UserName,
                 u.EmailAddress AS UserEmail
-            FROM 
+            FROM
                 Posts p
-            LEFT JOIN 
+            LEFT JOIN
                 Users u ON p.UserId = u.Id
-            WHERE 
+            WHERE
                 p.Id = ?
         `)
             .bind(newPostId)

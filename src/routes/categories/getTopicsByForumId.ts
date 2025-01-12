@@ -1,8 +1,8 @@
-import getQueryParams from "../middleware/getQueryParams";
+import getQueryParams from "../../middleware/getQueryParams";
 
 async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
     const forumId = params["forumId"];
-    
+
     const queryParams = getQueryParams(request.url);
     // Parse skip and limit as integers with default values
     const skip = parseInt(queryParams["skip"], 10) || 0;
@@ -11,7 +11,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
     try {
         const { results } = await env.DB.prepare(
             `
-            SELECT 
+            SELECT
                 t.Id AS TopicId,
                 t.Title AS TopicTitle,
                 t.CreatedAt AS TopicCreatedAt,
@@ -29,20 +29,20 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                                 'Username', u.Username
                             )
                         )
-                    ), 
+                    ),
                     '[]'
                 ) AS Posts
-            FROM 
+            FROM
                 Topics t
-            LEFT JOIN 
+            LEFT JOIN
                 Posts p ON t.Id = p.TopicId
             LEFT JOIN
                 Users u ON p.UserId = u.Id
             WHERE
                 t.ForumId = ?
-            GROUP BY 
+            GROUP BY
                 t.Id
-            ORDER BY 
+            ORDER BY
                 LatestPostDate DESC NULLS LAST
             LIMIT ? OFFSET ?
             `
@@ -62,7 +62,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
             try {
                 const posts = JSON.parse(topic.Posts as string);
                 const firstPostAuthor = posts.length > 0 ? posts[0].User.Username : null;
-                
+
                 posts.map((post: any) => {
                     post.CreatedAt = post.CreatedAt * 1000;
                 });

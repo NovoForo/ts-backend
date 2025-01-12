@@ -1,5 +1,5 @@
-import getQueryParams from "../middleware/getQueryParams";
-import md5 from "../utils/md5";
+import getQueryParams from "../../middleware/getQueryParams";
+import md5 from "../../utils/md5";
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
     const queryParams = getQueryParams(request.url);
@@ -8,8 +8,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 
     const { results } = await env.DB.prepare(
         `
-        SELECT 
-            p.Id AS PostId,    
+        SELECT
+            p.Id AS PostId,
             p.Content AS PostContent,
             p.CreatedAt AS PostCreatedAt,
             p.UpdatedAt AS PostUpdatedAt,
@@ -23,9 +23,9 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             json_group_array(pl.UserId) AS PostLikeUserIds,
             COUNT(*) OVER() AS TotalCount,
             COUNT(pl.Id) AS LikesCount
-        FROM 
+        FROM
             Posts p
-        LEFT JOIN 
+        LEFT JOIN
             Topics t ON p.TopicId = t.Id
         LEFT JOIN
             Users u ON p.UserId = u.Id
@@ -33,7 +33,7 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             PostLikes pl ON pl.PostId = p.Id
         WHERE
             p.TopicId = ?
-        GROUP BY 
+        GROUP BY
             p.Id
         LIMIT ? OFFSET ?
         `
@@ -45,7 +45,7 @@ async function getTopicById(request: Request, params: Record<string, string>, en
 
     const posts = await Promise.all(results.map(async (row: any) => {
         const hash = await md5(row.UserEmail);
-        
+
         return {
             Id: row.PostId,
             Content: row.PostContent,

@@ -1,7 +1,7 @@
-import isUserLoggedIn from "../middleware/isUserLoggedIn";
-import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
+import isUserLoggedIn from "../../middleware/isUserLoggedIn";
+import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import {z} from "zod";
-import getUserPermissions from "../middleware/getUserPermissions";
+import getUserPermissions from "../../middleware/getUserPermissions";
 
 async function updatePostById(
     request: Request,
@@ -90,7 +90,7 @@ async function updatePostById(
             .run();
 
         const { results: updatedPostResults } = await env.DB.prepare(`
-            SELECT 
+            SELECT
                 p.Id AS PostId,
                 p.Content AS PostContent,
                 p.TopicId,
@@ -99,11 +99,11 @@ async function updatePostById(
                 p.UpdatedAt,
                 u.Username AS UserName,
                 u.EmailAddress AS UserEmail
-            FROM 
+            FROM
                 Posts p
-            LEFT JOIN 
+            LEFT JOIN
                 Users u ON p.UserId = u.Id
-            WHERE 
+            WHERE
                 p.Id = ?
         `)
             .bind(postId)
@@ -131,9 +131,9 @@ async function updatePostById(
                 UpdatedAt: Math.floor(Date.now()),
             },
             message: "Post updated successfully.",
-        }), { 
-            status: 200, 
-            headers: { "Content-Type": "application/json" } 
+        }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
         });
 
     } catch (error: any) {

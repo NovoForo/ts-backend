@@ -1,6 +1,6 @@
-import isUserLoggedIn from "../middleware/isUserLoggedIn";
-import getUserIdFromJwt from "../middleware/getUserIdFromJwt";
-import getUserPermissions from "../middleware/getUserPermissions";
+import isUserLoggedIn from "../../middleware/isUserLoggedIn";
+import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
+import getUserPermissions from "../../middleware/getUserPermissions";
 
 async function deletePostById(request: Request, params: Record<string, string>, env: Env) {
     if (!await isUserLoggedIn(request)) {
