@@ -18,6 +18,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                 p.CreatedAt AS PostCreatedAt,
                 MAX(p.CreatedAt) AS LatestPostDate,
                 COUNT(t.Id) OVER() AS TotalCount,
+								(SELECT COUNT(*) FROM TopicViews tv WHERE tv.TopicId = t.Id) AS TopicViewsCount,
                 COALESCE(
                     json_group_array(
                         json_object(
@@ -73,6 +74,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                     CreatedAt: topic.TopicCreatedAt as number * 1000,
                     User: firstPostAuthor ? { Username: firstPostAuthor } : null,
                     Posts: posts,
+										Views: topic.TopicViewsCount,
                 };
             } catch (error) {
                 console.error('Error processing topic:', error, 'Topic:', topic);
