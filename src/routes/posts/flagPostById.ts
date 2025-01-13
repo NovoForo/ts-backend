@@ -16,7 +16,7 @@ async function flagPostById(request: Request, params: Record<string, string>, en
 		.bind(postId, userId).first();
 
 	// User has already flagged the post, don't allow them to double-flag
-	if (!hasFlaggedPostResult) {
+	if (hasFlaggedPostResult) {
 		return new Response("You have already flagged this post!", { status: 403 })
 	}
 
