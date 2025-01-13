@@ -9,6 +9,7 @@ async function updatePostById(
     params: Record<string, string>,
     env: Env
 ): Promise<Response> {
+    const now = Math.floor(Date.now() / 1000);
 		// Check that the user is signed in
     if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized. Please log in to update the post.", { status: 401 });
@@ -104,7 +105,7 @@ async function updatePostById(
         const positivityScore = getSentimentScores(aiResponse).POSITIVE; 
 
 				// Calculate updatedAt time (remember to store as Unix seconds not MS)
-        const updatedAt = Math.floor(Date.now() / 1000);
+        const updatedAt = now;
 
 				// Attempt to update the post
         const updateResult = await env.DB.prepare(`
@@ -156,8 +157,8 @@ async function updatePostById(
                     Username: updatedPost.UserName,
                     Email: updatedPost.UserEmail,
                 },
-                CreatedAt: Math.floor(Date.now()),
-                UpdatedAt: Math.floor(Date.now()),
+                CreatedAt: now,
+                UpdatedAt: now
             },
             message: "Post updated successfully.",
         }), {

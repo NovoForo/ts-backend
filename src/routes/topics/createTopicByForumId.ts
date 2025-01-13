@@ -159,7 +159,7 @@ async function createTopicByForumId(
 					Id: newTopicId,
 					Title: parsedData.title,
 					ForumId: forumId,
-					CreatedAt: Math.floor(Date.now()),
+					CreatedAt: now,
 					UserId: userId,
 				},
 				Post: {
@@ -167,7 +167,7 @@ async function createTopicByForumId(
 					Content: parsedData.content,
 					TopicId: newTopicId,
 					UserId: userId,
-					CreatedAt: Math.floor(Date.now()),
+					CreatedAt: now,
 				},
 				message: "Topic and initial post created successfully.",
 			}, { status: 201 });
