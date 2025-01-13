@@ -8,7 +8,7 @@ async function flagPostById(request: Request, params: Record<string, string>, en
 	}
 
 	const postId = params.postId;
-	const userId = getUserIdFromJwt(request)
+	const userId = await getUserIdFromJwt(request)
 	// Check if user has already flagged the post
 	const hasFlaggedPostResult = await env.DB.prepare(`
 		SELECT * FROM PostFlags WHERE PostId = ? AND UserId = ?

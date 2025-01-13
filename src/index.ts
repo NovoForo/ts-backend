@@ -106,7 +106,7 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
     "POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/unlike": (request, params = {}, env) => env ? unlikePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
     // Post Flags (Notify Site Moderators to review a post)
-		"POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/flag": (request, params = {}, env) => env ? flagPostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+	"POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/flag": (request, params = {}, env) => env ? flagPostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
 	// User Profiles
 
