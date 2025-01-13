@@ -3,7 +3,7 @@ import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import getUserPermissions from "../../middleware/getUserPermissions";
 import isUserAnAdministrator from "../../middleware/isUserAnAdministrator";
 import isUserAModerator from "../../middleware/isUserAModerator";
-
+import md5 from "../../utils/md5";
 async function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
 	if (!await isUserLoggedIn(request)) {
 		return new Response("Unauthorized", { status: 401 });
@@ -35,7 +35,7 @@ async function verifyCredentials(request: Request, params: Record<string, string
 			Id: user.Id,
 			Username: user.Username,
 			EmailAddress: user.EmailAddress,
-			image: ''
+			image: 'https://www.gravatar.com/avatar/' + await md5(user.EmailAddress as string),
 		},
 		IsAdministrator: await isUserAnAdministrator(request, env),
 		IsModerator: await isUserAModerator(request, env),
