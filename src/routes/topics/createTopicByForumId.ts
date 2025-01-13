@@ -78,6 +78,7 @@ async function createTopicByForumId(
 
 		// Attempt to insert the topic into the database
 		try {
+			const now = Math.floor(Date.now() / 1000);
 			const insertTopicResult = await env.DB.prepare(
 				`
 							INSERT INTO Topics
@@ -86,7 +87,7 @@ async function createTopicByForumId(
 									(?, ?, ?, ?);
 							`
 			)
-				.bind(parsedData.title, forumId, Math.floor(Date.now() / 1000), ((negativityScore - positivityScore) > 0.8))
+				.bind(parsedData.title, forumId, now, ((negativityScore - positivityScore) > 0.8))
 				.run();
 
 			// Check fi the topic was successfully inserted into the database
@@ -118,7 +119,7 @@ async function createTopicByForumId(
 									(?, ?, ?, ?, ?);
 							`
 			)
-				.bind(parsedData.content, newTopicId, userId, Math.floor(Date.now() / 1000), ((negativityScore - positivityScore) > 0.8))
+				.bind(parsedData.content, newTopicId, userId, now, ((negativityScore - positivityScore) > 0.8))
 				.run();
 
 			// Confirm the post was inserted
@@ -130,7 +131,7 @@ async function createTopicByForumId(
 							LIMIT 1;
 							`
 			)
-				.bind(newTopicId, userId, Math.floor(Date.now() / 1000))
+				.bind(newTopicId, userId, now)
 				.first();
 
 			// The post did not insert for some reason
