@@ -2,6 +2,7 @@ import isUserLoggedIn from "../../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import {z} from "zod";
 import getUserPermissions from "../../middleware/getUserPermissions";
+import getSentimentScores from "../../utils/getSentimentScores";
 
 async function updatePostById(
     request: Request,
@@ -91,16 +92,27 @@ async function updatePostById(
 				// Get content from the parsed input
         const { content } = parsedInput;
 
+        // Use AI to flag the post for manual view if necessary
+        const aiResponse = await env.AI.run(
+          "@cf/huggingface/distilbert-sst-2-int8",
+            {
+              text: parsedInput.content,
+            }
+        );
+        
+        const negativityScore = getSentimentScores(aiResponse).NEGATIVE;
+        const positivityScore = getSentimentScores(aiResponse).POSITIVE; 
+
 				// Calculate updatedAt time (remember to store as Unix seconds not MS)
         const updatedAt = Math.floor(Date.now() / 1000);
 
 				// Attempt to update the post
         const updateResult = await env.DB.prepare(`
             UPDATE Posts
-            SET Content = ?, UpdatedAt = ?
+            SET Content = ?, UpdatedAt = ?, IsWithheldForModeratorReview = ?
             WHERE Id = ?;
         `)
-            .bind(content, updatedAt, postId)
+            .bind(content, updatedAt, ((negativityScore - positivityScore) > 0.8), postId)
             .run();
 
 				// Get the updated post
@@ -138,6 +150,7 @@ async function updatePostById(
                 Id: updatedPost.PostId,
                 Content: updatedPost.PostContent,
                 TopicId: updatedPost.TopicId,
+                IsWithheldForModeratorReview: ((negativityScore - positivityScore) > 0.8),
                 User: {
                     Id: updatedPost.UserId,
                     Username: updatedPost.UserName,

@@ -2,6 +2,7 @@ import { z } from "zod";
 import isUserLoggedIn from "../../middleware/isUserLoggedIn";
 import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import getUserPermissions from "../../middleware/getUserPermissions";
+import getSentimentScores from "../../utils/getSentimentScores";
 
 async function replyToTopicById(request: Request, params: Record<string, string>, env: Env): Promise<Response> {
     // Check that user is logged in
@@ -117,17 +118,28 @@ async function replyToTopicById(request: Request, params: Record<string, string>
     }
 
 		// Get content from the parased input
-    const { content } = parsedInput;
+        const { content } = parsedInput;
+
+    	// Use AI to flag the post for manual view if necessary
+		const aiResponse = await env.AI.run(
+			"@cf/huggingface/distilbert-sst-2-int8",
+				{
+					text: parsedInput.content,
+				}
+		);
+		
+		const negativityScore = getSentimentScores(aiResponse).NEGATIVE;
+		const positivityScore = getSentimentScores(aiResponse).POSITIVE; 
 
 		// Attempt to insert the post into the database
     try {
         const insertPostResult = await env.DB.prepare(`
             INSERT INTO Posts
-                (Content, TopicId, UserId, CreatedAt)
+                (Content, TopicId, UserId, CreatedAt, IsWithheldForModeratorReview)
             VALUES
-                (?, ?, ?, ?);
+                (?, ?, ?, ?, ?);
         `)
-            .bind(content, topicId, userId, Math.floor(Date.now() / 1000))
+            .bind(content, topicId, userId, Math.floor(Date.now() / 1000), ((negativityScore - positivityScore) > 0.8))
             .run();
 
         console.log("Insert Post Result:", insertPostResult);
@@ -183,6 +195,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
                     Username: newPost.UserName,
                     Email: newPost.UserEmail,
                 },
+                IsWitheldForReview: ((negativityScore - positivityScore) > 0.8),
                 CreatedAt: Math.floor(Date.now()),
             },
             message: "Reply posted successfully.",

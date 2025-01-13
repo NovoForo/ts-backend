@@ -2,6 +2,7 @@ import { z } from 'zod';
 import isUserLoggedIn from '../../middleware/isUserLoggedIn';
 import getUserIdFromJwt from '../../middleware/getUserIdFromJwt';
 import getUserPermissions from '../../middleware/getUserPermissions';
+import getSentimentScores from '../../utils/getSentimentScores';
 
 async function createTopicByForumId(
     request: Request,
@@ -64,17 +65,28 @@ async function createTopicByForumId(
 			return new Response("Could not determine user ID from token!", { status: 400 });
 		}
 
+		// Use AI to flag the post for manual view if necessary
+		const aiResponse = await env.AI.run(
+			"@cf/huggingface/distilbert-sst-2-int8",
+				{
+					text: parsedData.title + ' ' + parsedData.content,
+				}
+		);
+		
+		const negativityScore = getSentimentScores(aiResponse).NEGATIVE;
+		const positivityScore = getSentimentScores(aiResponse).POSITIVE; 
+
 		// Attempt to insert the topic into the database
 		try {
 			const insertTopicResult = await env.DB.prepare(
 				`
 							INSERT INTO Topics
-									(Title, ForumId, CreatedAt)
+									(Title, ForumId, CreatedAt, IsWithheldForModeratorReview)
 							VALUES
-									(?, ?, ?);
+									(?, ?, ?, ?);
 							`
 			)
-				.bind(parsedData.title, forumId, Math.floor(Date.now() / 1000))
+				.bind(parsedData.title, forumId, Math.floor(Date.now() / 1000), ((negativityScore - positivityScore) > 0.8))
 				.run();
 
 			// Check fi the topic was successfully inserted into the database
@@ -101,12 +113,12 @@ async function createTopicByForumId(
 			const insertPostResult = await env.DB.prepare(
 				`
 							INSERT INTO Posts
-									(Content, TopicId, UserId, CreatedAt)
+									(Content, TopicId, UserId, CreatedAt, IsWithheldForModeratorReview)
 							VALUES
-									(?, ?, ?, ?);
+									(?, ?, ?, ?, ?);
 							`
 			)
-				.bind(parsedData.content, newTopicId, userId, Math.floor(Date.now() / 1000))
+				.bind(parsedData.content, newTopicId, userId, Math.floor(Date.now() / 1000), ((negativityScore - positivityScore) > 0.8))
 				.run();
 
 			// Confirm the post was inserted
