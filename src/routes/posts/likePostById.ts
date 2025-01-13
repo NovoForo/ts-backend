@@ -15,7 +15,10 @@ async function likePostById(request: Request, params: Record<string,string>, env
         `).bind(postId, userId).first();
 
     if (likeExists) {
-        return new Response("You have already liked this post!", { status: 403 });
+				const deleteLikeResult = await env.DB.prepare(`
+					DELETE FROM PostLikes WHERE PostId = ? AND UserId = ?
+				`).bind(postId, userId).run();
+        return new Response("You have already liked this post! Unliking the post instead!", { status: 403 });
     }
 
     // Insert a like into the database

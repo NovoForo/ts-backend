@@ -15,7 +15,12 @@ async function unlikePostById(request: Request, params: Record<string,string>, e
         `).bind(postId, userId).first();
 
     if (!likeExists) {
-        return new Response("You have not liked this post!", { status: 403 });
+				const insertLikeResult = await env.DB.prepare(`
+				  IJNSERT INTO PostLikes (PostId, UserId, CreatedAt) VALUES (?, ?, strftime('%s', 'now'))
+				`)
+					.bind(postId, userId)
+					.run();
+        return new Response("You have not liked this post! Liking the post instead!", { status: 403 });
     }
 
     // Insert a like into the database
