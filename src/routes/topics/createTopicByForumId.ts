@@ -3,6 +3,7 @@ import isUserLoggedIn from '../../middleware/isUserLoggedIn';
 import getUserIdFromJwt from '../../middleware/getUserIdFromJwt';
 import getUserPermissions from '../../middleware/getUserPermissions';
 import getSentimentScores from '../../utils/getSentimentScores';
+import getUserFromJwt from '../../middleware/getUserFromJwt';
 
 async function createTopicByForumId(
     request: Request,
@@ -65,6 +66,48 @@ async function createTopicByForumId(
 			return new Response("Could not determine user ID from token!", { status: 400 });
 		}
 
+        // Anti-Spam Service
+        const user = await getUserFromJwt(request, env);
+        const akismetApiKey = await env.KV.get("akismet");
+        const spamCheckResult = await fetch(
+            'https://rest.akismet.com/1.1/comment-check',
+            {
+                method: 'POST',
+                headers: {
+	             'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                    body: new URLSearchParams({
+                        'api_key': akismetApiKey || "",
+                        'blog': "https://novoforo.online/",
+                        'user_agent': request.headers.get("User-Agent") || "",
+                        'referrer': request.headers.get("referrer") || "",
+                        'comment_type': 'forum-post',
+                        'comment_content': parsedData.content,
+                        'comment_author': user.Username,
+                        'comment_author_email': user.EmailAddress,
+                    }),
+                }
+            ).then(async (resp) => {
+                if (!resp.ok) {
+                    console.error("Akismet API responded with non-OK status:", resp.status);
+                    return false; // API down, skip the spam check!
+                }
+                const responseText = await resp.text(); // Get the raw response text
+                const responseLines = responseText.split("\n"); // Split response by lines
+                const result = responseLines[1]?.trim(); // Extract the second part of the response
+                if (result === "true") {
+                    return true;
+                } else if (result === "false") {
+                    return false;
+                } else {
+                    console.warn("Akismet returned an unexpected response:", responseText);
+                    return false;
+                }
+            }).catch((error) => {
+                console.error("Akismet API error:", error);
+                return false;
+            });
+
 		// Use AI to flag the post for manual view if necessary
 		const aiResponse = await env.AI.run(
 			"@cf/huggingface/distilbert-sst-2-int8",
@@ -87,7 +130,7 @@ async function createTopicByForumId(
 									(?, ?, ?, ?);
 							`
 			)
-				.bind(parsedData.title, forumId, now, ((negativityScore - positivityScore) > 0.8))
+				.bind(parsedData.title, forumId, now, spamCheckResult || ((negativityScore - positivityScore) > 0.8))
 				.run();
 
 			// Check fi the topic was successfully inserted into the database
@@ -119,7 +162,7 @@ async function createTopicByForumId(
 									(?, ?, ?, ?, ?);
 							`
 			)
-				.bind(parsedData.content, newTopicId, userId, now, ((negativityScore - positivityScore) > 0.8))
+				.bind(parsedData.content, newTopicId, userId, now, spamCheckResult || ((negativityScore - positivityScore) > 0.8))
 				.run();
 
 			// Confirm the post was inserted

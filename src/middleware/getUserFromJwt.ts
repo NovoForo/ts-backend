@@ -16,10 +16,8 @@ async function getUserFromJwt(request: Request, env: Env): Promise<any> {
 				u.Id AS UserId,
 				u.Username AS UserName,
 				u.EmailAddress AS UserEmail,
-                u.IsModerator AS UserIsModerator,
-                u.IsAdministrator AS UserIsAdministrator,
 				u.CreatedAt AS CreatedAt,
-				u.UpdatedAt AS UpdatedAt,
+				u.UpdatedAt AS UpdatedAt
 			FROM 
 				Users u
 			WHERE

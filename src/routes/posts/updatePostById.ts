@@ -3,6 +3,7 @@ import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import {z} from "zod";
 import getUserPermissions from "../../middleware/getUserPermissions";
 import getSentimentScores from "../../utils/getSentimentScores";
+import getUserFromJwt from "../../middleware/getUserFromJwt";
 
 async function updatePostById(
     request: Request,
@@ -107,13 +108,55 @@ async function updatePostById(
 				// Calculate updatedAt time (remember to store as Unix seconds not MS)
         const updatedAt = now;
 
+        // Anti-Spam Service
+        const user = await getUserFromJwt(request, env);
+        const akismetApiKey = await env.KV.get("akismet");
+        const spamCheckResult = await fetch(
+            'https://rest.akismet.com/1.1/comment-check',
+            {
+                method: 'POST',
+                headers: {
+	             'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                    body: new URLSearchParams({
+                        'api_key': akismetApiKey || "",
+                        'blog': "https://novoforo.online/",
+                        'user_agent': request.headers.get("User-Agent") || "",
+                        'referrer': request.headers.get("referrer") || "",
+                        'comment_type': 'forum-post',
+                        'comment_content': content,
+                        'comment_author': user.Username,
+                        'comment_author_email': user.EmailAddress,
+                    }),
+                }
+            ).then(async (resp) => {
+                if (!resp.ok) {
+                    console.error("Akismet API responded with non-OK status:", resp.status);
+                    return false; // API down, skip the spam check!
+                }
+                const responseText = await resp.text(); // Get the raw response text
+                const responseLines = responseText.split("\n"); // Split response by lines
+                const result = responseLines[1]?.trim(); // Extract the second part of the response
+                if (result === "true") {
+                    return true;
+                } else if (result === "false") {
+                    return false;
+                } else {
+                    console.warn("Akismet returned an unexpected response:", responseText);
+                    return false;
+                }
+            }).catch((error) => {
+                console.error("Akismet API error:", error);
+                return false;
+            });
+        
 				// Attempt to update the post
         const updateResult = await env.DB.prepare(`
             UPDATE Posts
             SET Content = ?, UpdatedAt = ?, IsWithheldForModeratorReview = ?
             WHERE Id = ?;
         `)
-            .bind(content, updatedAt, ((negativityScore - positivityScore) > 0.8), postId)
+            .bind(content, updatedAt, spamCheckResult || ((negativityScore - positivityScore) > 0.8), postId)
             .run();
 
 				// Get the updated post
