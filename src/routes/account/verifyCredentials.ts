@@ -5,12 +5,15 @@ import isUserAnAdministrator from "../../middleware/isUserAnAdministrator";
 import isUserAModerator from "../../middleware/isUserAModerator";
 import md5 from "../../utils/md5";
 async function verifyCredentials(request: Request, params: Record<string, string>, env: Env) {
+	// Check that the user is logged in
 	if (!await isUserLoggedIn(request)) {
 		return new Response("Unauthorized", { status: 401 });
 	}
 
+	// Get the user ID from the provided JWT
 	const userId = await getUserIdFromJwt(request);
 
+	// Get the user from the database
 	const user = await env.DB.prepare(
 		`
 		SELECT * FROM Users
@@ -18,10 +21,12 @@ async function verifyCredentials(request: Request, params: Record<string, string
 		`
 	).bind(userId).first();
 
+	// Something went wrong fetching the user from the database
 	if (!user) {
 		return new Response("User not found", { status: 404 });
 	}
 
+	// Try to get the user's permissions
 	let permissions = null;
 	try {
 		permissions = await getUserPermissions(request, env);
@@ -30,6 +35,7 @@ async function verifyCredentials(request: Request, params: Record<string, string
 		return new Response("An error occurred while fetching user permissions", { status: 500 });
 	}
 
+	// Return a response
 	return Response.json({
 		user: {
 			Id: user.Id,

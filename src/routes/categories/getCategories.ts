@@ -1,7 +1,9 @@
 async function getCategories(request: Request, params: Record<string, string>, env: Env) {
-	const { results } = await env.DB.prepare(
-		`
-		SELECT 
+	try {
+		// Query the database
+		const { results } = await env.DB.prepare(
+			`
+		SELECT
 			c.Id AS Id,
 			c.Name,
 			c.Description,
@@ -18,30 +20,39 @@ async function getCategories(request: Request, params: Record<string, string>, e
 						'CreatedAt', f.CreatedAt,
 						'UpdatedAt', f.UpdatedAt
 					)
-				), 
+				),
 				'[]'
 			) AS Forums
-		FROM 
+		FROM
 			Categories c
-		LEFT JOIN 
+		LEFT JOIN
 			Forums f
-		ON 
+		ON
 			c.Id = f.CategoryId
-		GROUP BY 
+		GROUP BY
 			c.Id;
 
 		`
-	)
-	.all();
+		)
+			.all();
 
-    const categories = results.map((row: any) => ({
-        ...row,
-        Forums: JSON.parse(row.Forums),
-    }));
+		// Map over the categories to parse the forum data
+		// into the object before it is returned
+		const categories = results.map((row: any) => ({
+			...row,
+			Forums: JSON.parse(row.Forums),
+		}));
 
-	return Response.json({
-		Categories: categories,
-	});
+		// Return a response
+		return Response.json({
+			Categories: categories,
+		});
+	} catch (error: any) {
+		// An error occured querying the database, log the error output
+		// for debugging purposes
+		console.error(error);
+		return new Response("Something went wrong", { status: 500 });
+	}
 }
 
 export default getCategories;

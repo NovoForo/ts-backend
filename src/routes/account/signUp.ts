@@ -9,21 +9,27 @@ import {
   } from 'bcrypt-edge';
 
 async function signUp(request: Request, params: Record<string, string>, env: Env) {
+	// Define the expected JSON body with zod
 	const inputSchema = z.object({
 		username: z.string(),
 		email: z.string().email(),
 		password: z.string().min(16),
 	});
 
+	// Ensure the request is JSON
 	const contentType = request.headers.get("content-type");
 	if (contentType && contentType.includes("application/json")) {
+		// Try to aprse the request
 		try {
 			const json = await request.json();
 			const parsedInput = inputSchema.parse(json);
 			const { username, email, password } = parsedInput;
-			const passwordHash = hashSync(password, 8);
-            let usersCount = 0;
 
+			// Create a password hash
+			const passwordHash = hashSync(password, 8);
+          // Initial a users counter
+					let usersCount = 0;
+						// Try to count the number of users in the database
             try {
                 const { results } = await env.DB.prepare(
                     `
@@ -32,15 +38,16 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
                     `
                 )
                 .all();
-
+								// Update the users count with the result
                 usersCount = results[0].UsersCount as number;
             } catch (error: any) {
                 return new Response("An error occurred while querying the database.", { status: 500 });
             }
 
+						// Insert the user in the database
 			try {
 				const { results } = await env.DB.prepare(
-					
+
 					`
 					INSERT INTO Users
 						(Username,
@@ -53,7 +60,7 @@ async function signUp(request: Request, params: Record<string, string>, env: Env
 				.bind(username, passwordHash, email, Math.floor(Date.now() / 1000))
 				.all();
 
-				// If this is the first user, make them an admin
+				// If this is the first user, make them an admin and moderator
 				if (usersCount == 0) {
 					await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId, CreatedAt) VALUES (?, ?, strftime('%s', 'now'))`).bind(1, 3).run()
                     await env.DB.prepare(`INSERT INTO UserGroupMemberships (UserId, UserGroupId, CreatedAt) VALUES (?, ?, strftime('%s', 'now'))`).bind(1, 4).run()

@@ -4,33 +4,36 @@ import isUserLoggedIn from '../../middleware/isUserLoggedIn';
 import getUserIdFromJwt from '../../middleware/getUserIdFromJwt';
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
-    const queryParams = getQueryParams(request.url);
-    const skip = queryParams["skip"] || 0;
-    const limit = queryParams["limit"] || 10;
+try {
+	// Get query parameters (for skip and limit)
+	const queryParams = getQueryParams(request.url);
+	const skip = queryParams["skip"] || 0;
+	const limit = queryParams["limit"] || 10;
 
-		if (await isUserLoggedIn(request)) {
-			// Check if the User has viewed this topic before
-			const userId = await getUserIdFromJwt(request);
-			const _topicId = params.topicId; // Underscore because I think topicId gets declared elsewhere in this function
-			const userHasViewedTopicAlready = await env.DB.prepare(
-				`SELECT * FROM TopicViews WHERE TopicID = ? AND UserId = ?`)
-				.bind(_topicId, userId).first();
+	// If the user is logged in begin recording their view of the topic
+	if (await isUserLoggedIn(request)) {
+		// Check if the User has viewed this topic before
+		const userId = await getUserIdFromJwt(request);
+		const _topicId = params.topicId; // Underscore because I think topicId gets declared elsewhere in this function
+		const userHasViewedTopicAlready = await env.DB.prepare(
+			`SELECT * FROM TopicViews WHERE TopicID = ? AND UserId = ?`)
+			.bind(_topicId, userId).first();
 
-			// User has not viewed this topic before, create a TopicView
-			if (userHasViewedTopicAlready == null) {
-				try {
-					await env.DB.prepare(
-						`INSERT INTO TopicViews(TopicId, UserId, CreatedAt) VALUES(?, ?, strftime('%s', 'now'))`
-					).bind(_topicId, userId).run();
-				} catch (error: any) {
-					console.error(error);
-					return new Response("An exception occurred while saving your view of the topic!", { status: 500 })
-				}
+		// User has not viewed this topic before, create a TopicView
+		if (userHasViewedTopicAlready == null) {
+			try {
+				await env.DB.prepare(
+					`INSERT INTO TopicViews(TopicId, UserId, CreatedAt) VALUES(?, ?, strftime('%s', 'now'))`
+				).bind(_topicId, userId).run();
+			} catch (error: any) {
+				console.error(error);
+				return new Response("An exception occurred while saving your view of the topic!", { status: 500 })
 			}
 		}
-
-    const { results } = await env.DB.prepare(
-        `
+	}
+// Query the database to get information about the topic and it's posts
+	const { results } = await env.DB.prepare(
+		`
         SELECT
             p.Id AS PostId,
             p.Content AS PostContent,
@@ -63,43 +66,53 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             p.Id
         LIMIT ? OFFSET ?
         `
-    )
-    .bind(params["topicId"], limit, skip)
-    .all();
+	)
+		.bind(params["topicId"], limit, skip)
+		.all();
 
-    const TotalCount = results[0].TotalCount;
+	// Get the count of the number of posts for the topic in the database
+	const TotalCount = results[0].TotalCount;
 
-    const posts = await Promise.all(results.map(async (row: any) => {
-        const hash = await md5(row.UserEmail);
+	// Map over the posts to create a customized posts array to include in
+	// the response
+	const posts = await Promise.all(results.map(async (row: any) => {
+		const hash = await md5(row.UserEmail);
 
-        return {
-            Id: row.PostId,
-            Content: row.PostContent,
-            CreatedAt: row.PostCreatedAt * 1000,
-            UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
-            LikeCount: row.LikesCount,
-            Likes:JSON.parse(row.PostLikeUserIds),
-            Topic: {
-                Id: row.TopicId,
-                Title: row.TopicTitle,
-                CreatedAt: row.TopicCreatedAt * 1000,
-                UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
-								Views: row.TopicViewsCount,
-            },
-            User: {
-                Id: row.UserId,
-                Username: row.UserName,
-                Email: hash,
-                IsAdministrator: false,
-                IsModerator: false,
-            }
-        }
-    }));
+		return {
+			Id: row.PostId,
+			Content: row.PostContent,
+			CreatedAt: row.PostCreatedAt * 1000,
+			UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
+			LikeCount: row.LikesCount,
+			Likes:JSON.parse(row.PostLikeUserIds),
+			Topic: {
+				Id: row.TopicId,
+				Title: row.TopicTitle,
+				CreatedAt: row.TopicCreatedAt * 1000,
+				UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
+				Views: row.TopicViewsCount,
+			},
+			User: {
+				Id: row.UserId,
+				Username: row.UserName,
+				Email: hash,
+				IsAdministrator: false,
+				IsModerator: false,
+			}
+		}
+	}));
 
-    return Response.json({
-        count: TotalCount,
-        posts: posts
-    });
+	// Return a response
+	return Response.json({
+		count: TotalCount,
+		posts: posts
+	});
+} catch (error: any) {
+	// Something went wrong, log the error for debugging purposes and
+	// return a response to the user.
+	console.error(error);
+	return new Response("Something went wrong", { status: 500 });
+}
 }
 
 export default getTopicById;

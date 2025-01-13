@@ -1,13 +1,17 @@
 import getQueryParams from "../../middleware/getQueryParams";
 
 async function getTopicsByForumId(request: Request, params: Record<string, string>, env: Env) {
-    const forumId = params["forumId"];
+	  // Get the forum ID
+		const forumId = params["forumId"];
 
+		// Get the query parameters
     const queryParams = getQueryParams(request.url);
     // Parse skip and limit as integers with default values
     const skip = parseInt(queryParams["skip"], 10) || 0;
     const limit = parseInt(queryParams["limit"], 10) || 10;
 
+		// Attempt to query the database for information about the topics
+		// belonging to the specified forum ID
     try {
         const { results } = await env.DB.prepare(
             `
@@ -60,7 +64,8 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                 topics: []
             });
         }
-
+				// Map over the results to parse the posts JSON from the database
+				// into the object in place
         const topics = results.map(topic => {
             try {
                 const posts = JSON.parse(topic.Posts as string);
@@ -86,6 +91,7 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
 
         const TotalCount = results[0].TotalCount || 0;
 
+				// Return a response to the user
         return Response.json({
             count: TotalCount,
             topics: topics
