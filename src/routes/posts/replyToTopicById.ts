@@ -4,44 +4,57 @@ import getUserIdFromJwt from "../../middleware/getUserIdFromJwt";
 import getUserPermissions from "../../middleware/getUserPermissions";
 
 async function replyToTopicById(request: Request, params: Record<string, string>, env: Env): Promise<Response> {
-    if (!await isUserLoggedIn(request)) {
+    // Check that user is logged in
+		if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized. Please log in to reply.", { status: 401 });
     }
 
+		// Check user permissions
     const permissions = await getUserPermissions(request, env);
     if (!permissions) {
         return new Response("An error occurred while fetching user permissions.", { status: 500 });
     }
+
+		// User does not have permission to reply
     if (!(permissions).CanReply) {
         return new Response("You do not have permission to reply.", { status: 403 });
     }
 
+		// Get User ID from JWT
     const userIdStr = await getUserIdFromJwt(request);
+
+		// This should never happen but handle the error anyways
     if (!userIdStr) {
         return new Response("Invalid token. Unable to identify user.", { status: 400 });
     }
 
+		// Parse the User ID into an Integer
     const userId = parseInt(userIdStr, 10);
     if (isNaN(userId)) {
         return new Response("Invalid user ID in token.", { status: 400 });
     }
 
+		// Get URL Path Parameters
     const categoryIdStr = params["categoryID"] || params["categoryId"] || params["categoryid"];
     const forumIdStr = params["forumID"] || params["forumId"] || params["forumid"];
     const topicIdStr = params["topicId"] || params["topicid"];
 
+		// This should never happen because of how the router is setup but catch the error anyways
     if (!categoryIdStr || !forumIdStr || !topicIdStr) {
         return new Response("Missing categoryID, forumID, or topicId in the URL.", { status: 400 });
     }
 
+		// Parse the path params into integers
     const categoryId = parseInt(categoryIdStr, 10);
     const forumId = parseInt(forumIdStr, 10);
     const topicId = parseInt(topicIdStr, 10);
 
+		// If any parameters was not an integer return an error
     if (isNaN(categoryId) || isNaN(forumId) || isNaN(topicId)) {
         return new Response("Invalid categoryID, forumID, or topicId.", { status: 400 });
     }
 
+		// Check if the topic is in the database
     try {
         const { results: topicResults } = await env.DB.prepare(`
             SELECT t.Id
@@ -61,6 +74,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
         return new Response("An error occurred while verifying the topic.", { status: 500 });
     }
 
+		// Check if the forum is in the database
     try {
         const { results: forumResults } = await env.DB.prepare(`
             SELECT f.Id
@@ -84,11 +98,13 @@ async function replyToTopicById(request: Request, params: Record<string, string>
         content: z.string().min(1, "Content is required."),
     });
 
+		// Check if the incoming requesst is JSON Data
     const contentType = request.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
         return new Response("Invalid content-type! Expected application/json.", { status: 400 });
     }
 
+		// Attempt to retrive the request body
     let parsedInput;
     try {
         const json = await request.json();
@@ -100,8 +116,10 @@ async function replyToTopicById(request: Request, params: Record<string, string>
         return new Response("Invalid JSON payload!", { status: 400 });
     }
 
+		// Get content from the parased input
     const { content } = parsedInput;
 
+		// Attempt to insert the post into the database
     try {
         const insertPostResult = await env.DB.prepare(`
             INSERT INTO Posts
@@ -114,6 +132,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
 
         console.log("Insert Post Result:", insertPostResult);
 
+				// Check if the post was inserted into the databaase
         const postIdResult = await env.DB.prepare(`
             SELECT Id FROM Posts
             WHERE TopicId = ? AND UserId = ? AND CreatedAt = ?
@@ -125,18 +144,7 @@ async function replyToTopicById(request: Request, params: Record<string, string>
 
         console.log("Post ID Result:", postIdResult);
 
-        if (!postIdResult || !postIdResult.Id) {
-            await env.DB.prepare(`
-                DELETE FROM Topics
-                WHERE Id = ?;
-            `)
-                .bind(topicId)
-                .run();
-
-            return new Response("Failed to retrieve the newly created post ID. Topic has been rolled back.", { status: 500 });
-        }
-
-        const newPostId = postIdResult.Id;
+        const newPostId = postIdResult?.Id;
 
         const { results: newPostResults } = await env.DB.prepare(`
             SELECT
