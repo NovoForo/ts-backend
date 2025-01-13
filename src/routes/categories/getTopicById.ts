@@ -57,6 +57,8 @@ async function getTopicById(request: Request, params: Record<string, string>, en
             PostLikes pl ON pl.PostId = p.Id
         WHERE
             p.TopicId = ?
+          	AND p.IsWithheldForModeratorReview = 0
+        		AND t.IsWithheldForModeratorReview = 0
         GROUP BY
             p.Id
         LIMIT ? OFFSET ?

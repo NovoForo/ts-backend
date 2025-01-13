@@ -41,6 +41,8 @@ async function getTopicsByForumId(request: Request, params: Record<string, strin
                 Users u ON p.UserId = u.Id
             WHERE
                 t.ForumId = ?
+								AND p.IsWithheldForModeratorReview = 0
+								AND t.IsWithheldForModeratorReview = 0
             GROUP BY
                 t.Id
             ORDER BY
