@@ -34,6 +34,7 @@ import withholdTopicById from "./routes/moderator/withholdTopicById";
 import likePostById from "./routes/posts/likePostById";
 import unlikePostById from "./routes/posts/unlikePostById";
 import flagPostById from './routes/posts/flagPostById';
+import deleteFLagById from "./routes/moderator/deleteFlagById";
 
 function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
@@ -129,6 +130,7 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
     "PATCH /moderator/topics/:topicId/edit": (request, params = {}, env) => env ? modEditTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/posts/:postId/edit": (request, params = {}, env) => env ? modEditTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "DELETE /moderator/posts/:postId": (request, params = {}, env) => env ? deletePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "DELETE /moderator/posts/:postId/flag": (request, params = {}, env) => env ? deleteFLagById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "DELETE /moderator/topics/:topicId": (request, params = {}, env) => env ? deleteTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/users/:userId/ban": (request, params = {}, env) => env ? banUserById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/users/:userId/lock": (request, params = {}, env) => env ? lockUserById(request, params, env) : new Response("Environment not defined", { status: 500 }),
