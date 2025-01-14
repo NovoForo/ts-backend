@@ -13,7 +13,7 @@ import updatePostById from "./routes/posts/updatePostById";
 import deletePostById from "./routes/posts/deletePostById";
 import createCategory from "./routes/administrator/createCategory";
 import createForum from "./routes/administrator/createForum";
-import getTopicsForModeration from "./routes/moderator/getTopicsForModeration";
+import getMmoderationQueue from "./routes/moderator/getMmoderationQueue";
 import releaseTopicById from "./routes/moderator/releaseTopicById";
 import lockTopicById from "./routes/moderator/lockTopicById";
 import closeTopicById from "./routes/moderator/closeTopicById";
@@ -117,7 +117,7 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
     "DELETE /a/categories/:categoryId": (request, params = {}, env) => env ? deleteCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
     // Moderator Actions
-    "GET /moderator/queue": (request, params = {}, env) => env ? getTopicsForModeration(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "GET /moderator/queue": (request, params = {}, env) => env ? getMmoderationQueue(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/topics/:topicId/withhold": (request, params = {}, env) => env ? withholdTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/topics/:topicId/release": (request, params = {}, env) => env ? releaseTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PATCH /moderator/topics/:topicId/lock": (request, params = {}, env) => env ? lockTopicById(request, params, env) : new Response("Environment not defined", { status: 500 }),

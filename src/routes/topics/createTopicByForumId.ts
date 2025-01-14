@@ -19,7 +19,7 @@ async function createTopicByForumId(
 		// Check if user has permission to create topics
 		const permissions = await getUserPermissions(request, env);
 		if (!permissions || !permissions.CanCreateTopics) {
-			return new Response("Unauthorized", { status: 401 });
+			return new Response("You do not have permission to create topics!", { status: 401 });
 		}
 
 		// Check that the incoming request is JSON Data
