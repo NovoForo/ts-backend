@@ -14,21 +14,21 @@ async function deleteTopicById(request: Request, params: Record<string, string>,
 
     await env.DB.prepare(
         `
-        DELETE FROM Topics
-        WHERE Id = ?
-        `
-    )
-    .bind(topicId)
-    .run();
-
-    await env.DB.prepare(
-        `
         DELETE FROM Posts
         WHERE Id = ?
         `
     )
     .bind(topicId)
-    .run();
+    .run().then(async () => {
+        await env.DB.prepare(
+            `
+            DELETE FROM Topics
+            WHERE Id = ?
+            `
+        )
+        .bind(topicId)
+        .run();
+    });
 
     return new Response("Topic deleted", { status: 200 });
 }
