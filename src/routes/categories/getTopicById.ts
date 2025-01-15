@@ -2,6 +2,7 @@ import getQueryParams from "../../middleware/getQueryParams";
 import md5 from "../../utils/md5";
 import isUserLoggedIn from '../../middleware/isUserLoggedIn';
 import getUserIdFromJwt from '../../middleware/getUserIdFromJwt';
+import { number } from "zod";
 
 async function getTopicById(request: Request, params: Record<string, string>, env: Env) {
 try {
@@ -47,9 +48,11 @@ try {
             u.Username AS UserName,
             u.EmailAddress AS UserEmail,
             json_group_array(pl.UserId) AS PostLikeUserIds,
+			json_group_array(pd.UserId) AS PostDislikeUserIds,
             COUNT(*) OVER() AS TotalCount,
             COUNT(pl.Id) AS LikesCount,
-						(SELECT COUNT(*) FROM TopicViews tv WHERE tv.TopicId = t.Id) AS TopicViewsCount
+			COUnT(pd.Id) As DislikesCount,
+			(SELECT COUNT(*) FROM TopicViews tv WHERE tv.TopicId = t.Id) AS TopicViewsCount
         FROM
             Posts p
         LEFT JOIN
@@ -58,6 +61,8 @@ try {
             Users u ON p.UserId = u.Id
         LEFT JOIN
             PostLikes pl ON pl.PostId = p.Id
+		LEFT JOIN
+			PostDislikes pd ON pd.PostId = p.Id
         WHERE
             p.TopicId = ?
           	AND p.IsWithheldForModeratorReview = 0
@@ -78,26 +83,65 @@ try {
 	const posts = await Promise.all(results.map(async (row: any) => {
 		const hash = await md5(row.UserEmail);
 
-		return {
-			Id: row.PostId,
-			Content: row.PostContent,
-			CreatedAt: row.PostCreatedAt * 1000,
-			UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
-			LikeCount: row.LikesCount,
-			Likes:JSON.parse(row.PostLikeUserIds),
-			Topic: {
-				Id: row.TopicId,
-				Title: row.TopicTitle,
-				CreatedAt: row.TopicCreatedAt * 1000,
-				UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
-				Views: row.TopicViewsCount,
-			},
-			User: {
-				Id: row.UserId,
-				Username: row.UserName,
-				Email: hash,
-				IsAdministrator: false,
-				IsModerator: false,
+		let youHaveLiked = false;
+		let youHaveDisliked = false;
+
+		if (await isUserLoggedIn(request)) {
+			const userId = await getUserIdFromJwt(request);
+			const reaction = JSON.parse(row.PostLikeUserIds).includes(userId)
+			? "liked"
+			: JSON.parse(row.PostDislikeUserIds).includes(userId)
+			  ? "disliked"
+			  : "none";
+		  
+			return {
+				Id: row.PostId,
+				Content: row.PostContent,
+				CreatedAt: row.PostCreatedAt * 1000,
+				UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
+				LikeCount: (row.LikesCount - row.DislikesCount),
+				Likes: JSON.parse(row.PostLikeUserIds),
+				Dislikes: JSON.parse(row.PostDislikeUserIds),
+				LikeStatusText: reaction,
+				Topic: {
+					Id: row.TopicId,
+					Title: row.TopicTitle,
+					CreatedAt: row.TopicCreatedAt * 1000,
+					UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
+					Views: row.TopicViewsCount,
+				},
+				User: {
+					Id: row.UserId,
+					Username: row.UserName,
+					Email: hash,
+					IsAdministrator: false,
+					IsModerator: false,
+				}
+			}
+		} else {
+			return {
+				Id: row.PostId,
+				Content: row.PostContent,
+				CreatedAt: row.PostCreatedAt * 1000,
+				UpdatedAt: row.PostUpdatedAt ? row.PostUpdatedAt * 1000 : null,
+				LikeCount: (row.LikesCount - row.DislikesCount),
+				Likes: JSON.parse(row.PostLikeUserIds),
+				Dislikes: JSON.parse(row.PostDislikeUserIds),
+				LikeStatusText: "none",
+				Topic: {
+					Id: row.TopicId,
+					Title: row.TopicTitle,
+					CreatedAt: row.TopicCreatedAt * 1000,
+					UpdatedAt: row.TopicUpdatedAt ? row.TopicUpdatedAt * 1000 : null,
+					Views: row.TopicViewsCount,
+				},
+				User: {
+					Id: row.UserId,
+					Username: row.UserName,
+					Email: hash,
+					IsAdministrator: false,
+					IsModerator: false,
+				}
 			}
 		}
 	}));
