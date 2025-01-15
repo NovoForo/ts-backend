@@ -32,9 +32,9 @@ import isUserLoggedIn from "./middleware/isUserLoggedIn";
 import isUserAnAdministrator from "./middleware/isUserAnAdministrator";
 import withholdTopicById from "./routes/moderator/withholdTopicById";
 import likePostById from "./routes/posts/likePostById";
-import unlikePostById from "./routes/posts/unlikePostById";
 import flagPostById from './routes/posts/flagPostById';
 import deleteFLagById from "./routes/moderator/deleteFlagById";
+import dislikePostById from "./routes/posts/dislikePostById";
 
 function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
 	return new Response("Not implemented!", { status: 501 });
@@ -104,7 +104,7 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
 
     // Post Like/Dislike
     "POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/like": (request, params = {}, env) => env ? likePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
-    "POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/unlike": (request, params = {}, env) => env ? unlikePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/dislike": (request, params = {}, env) => env ? dislikePostById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
     // Post Flags (Notify Site Moderators to review a post)
 	"POST /categories/:categoryID/forums/:forumID/topics/:topicId/posts/:postId/flag": (request, params = {}, env) => env ? flagPostById(request, params, env) : new Response("Environment not defined", { status: 500 }),

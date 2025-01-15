@@ -52,7 +52,6 @@ export interface Category {
   export interface Post {
 	Id: number;
 	Content: string;
-	ALFlaggedForReview: boolean;
 	IsWithheldForModeratorReview: boolean;
 	TopicId: number;
 	UserId: number;
@@ -68,6 +67,14 @@ export interface Category {
 	CreatedAt: number;
   }
   
+  // PostDislikes Table
+  export interface PostDislike {
+	Id: number;
+	PostId: number;
+	UserId: number;
+	CreatedAt: number;
+  }
+
   // PostFlags Table
   export interface PostFlag {
 	Id: number;

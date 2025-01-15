@@ -27,6 +27,11 @@ async function likePostById(request: Request, params: Record<string,string>, env
         .bind(postId, userId)
         .run()
 
+    // Delete dislikes if any exist
+    await env.DB.prepare(`
+        DELETE FROM PostDislikes WHERE PostId = ? AND UserId = ?
+    `).bind(postId, userId).run();
+
     // Return a response
     return new Response("Post successfully liked!", { status: 200 });
 }
