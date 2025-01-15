@@ -35,13 +35,65 @@ import likePostById from "./routes/posts/likePostById";
 import flagPostById from './routes/posts/flagPostById';
 import deleteFLagById from "./routes/moderator/deleteFlagById";
 import dislikePostById from "./routes/posts/dislikePostById";
+import {z} from 'zod';
 
-function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function updateCategoryById(request: Request, params: Record<string, string>, env: Env) {
+	if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!await isUserAnAdministrator(request, env)) {
+        return new Response("Unauthorized!", { status: 401 })
+    }
+
+    const categoryId = params.categoryId;
+
+// Attempt to retrive the request body
+    let jsonData: any;
+    try {
+        jsonData = await request.json();
+    } catch (error) {
+        return new Response("Invalid JSON payload!", { status: 400 });
+    }
+
+    // Use Zod to define the expected JSON request body
+    const categorySchema = z.object({
+        name: z.string().min(1, "Name is required."),
+        description: z.string().min(1, "Description is required."),
+    });
+
+    // Attempt to parse the requet body with Zod
+    let parsedData;
+    try {
+        parsedData = categorySchema.parse(jsonData);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return new Response(JSON.stringify(error.errors), { status: 400 });
+        }
+        return new Response("Failed to validate forum data!", { status: 400 });
+    }
+
+    // Update category
+    await env.DB.prepare(`UPDATE Categories SET Name = ?, Description = ? WHERE Id = ?`).bind(parsedData.name, parsedData.description, categoryId).run();
+
+    return new Response("Category updated!");
 }
 
-function deleteCategoryById(request: Request, params: Record<string, string>, env: Env) {
-	return new Response("Not implemented!", { status: 501 });
+async function deleteCategoryById(request: Request, params: Record<string, string>, env: Env) {
+    if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+    
+    if (!await isUserAnAdministrator(request, env)) {
+        return new Response("Unauthorized!", { status: 401 })
+    }
+    
+    const categoryId = params.categoryId;
+    
+    // Delete category
+    await env.DB.prepare(`DELETE FROM Categories WHERE Id = ?`).bind(categoryId).run();
+    
+    return new Response("Category updated!");
 }
 
 
@@ -114,7 +166,7 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
 	// Admin Actions
     "POST /a/categories": (request, params = {}, env) => env ? createCategory(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /a/categories/:categoryId": (request, params = {}, env) => env ? createForum(request, params, env) : new Response("Environment not defined", { status: 500 }),
-    "PATCH /a/categories/:categoryId": (request, params = {}, env) => env ? updateCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "PUT /a/categories/:categoryId": (request, params = {}, env) => env ? updateCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "DELETE /a/categories/:categoryId": (request, params = {}, env) => env ? deleteCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
     // Moderator Actions
