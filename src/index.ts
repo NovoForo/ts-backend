@@ -79,6 +79,48 @@ async function updateCategoryById(request: Request, params: Record<string, strin
     return new Response("Category updated!");
 }
 
+async function updateForumById(request: Request, params: Record<string, string>, env: Env) {
+	if (!await isUserLoggedIn(request)) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!await isUserAnAdministrator(request, env)) {
+        return new Response("Unauthorized!", { status: 401 })
+    }
+
+    const forumId = params.forumId;
+
+    // Attempt to retrive the request body
+    let jsonData: any;
+    try {
+        jsonData = await request.json();
+    } catch (error) {
+        return new Response("Invalid JSON payload!", { status: 400 });
+    }
+
+    // Use Zod to define the expected JSON request body
+    const forumSchema = z.object({
+        name: z.string().min(1, "Name is required."),
+        description: z.string().min(1, "Description is required."),
+    });
+
+    // Attempt to parse the requet body with Zod
+    let parsedData;
+    try {
+        parsedData = forumSchema.parse(jsonData);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return new Response(JSON.stringify(error.errors), { status: 400 });
+        }
+        return new Response("Failed to validate forum data!", { status: 400 });
+    }
+
+    // Update category
+    await env.DB.prepare(`UPDATE Forums SET Name = ?, Description = ? WHERE Id = ?`).bind(parsedData.name, parsedData.description, forumId).run();
+
+    return new Response("Forum updated!");
+}
+
 async function deleteCategoryById(request: Request, params: Record<string, string>, env: Env) {
     if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized", { status: 401 });
@@ -93,34 +135,26 @@ async function deleteCategoryById(request: Request, params: Record<string, strin
     // Delete category
     await env.DB.prepare(`DELETE FROM Categories WHERE Id = ?`).bind(categoryId).run();
     
-    return new Response("Category updated!");
+    return new Response("Category deleted!");
 }
 
-
-async function aiTestResponse(request: Request, params: Record<string, string>, env: Env) {
+async function deleteForumById(request: Request, params: Record<string, string>, env: Env) {
     if (!await isUserLoggedIn(request)) {
         return new Response("Unauthorized", { status: 401 });
     }
-
+    
     if (!await isUserAnAdministrator(request, env)) {
-        return new Response("Unauthorized", { status: 401 });
+        return new Response("Unauthorized!", { status: 401 })
     }
-
-    if (!env.AI) {
-        return new Response("AI not enabled", { status: 500 });
-    }
-
-    const inputs = {
-        text: 'Hey Bob you wrote an interesting post on pizza. I love pizza but I hate pineapples. Can you imagine pineapples on pizza?',
-    };
-
-    const response = await env.AI.run(
-        '@cf/huggingface/distilbert-sst-2-int8',
-        inputs,
-    );
-
-    return new Response(JSON.stringify(response), { status: 200 });
+    
+    const forumId = params.forumId;
+    
+    // Delete category
+    await env.DB.prepare(`DELETE FROM Forums WHERE Id = ?`).bind(forumId).run();
+    
+    return new Response("Forum deleted!");
 }
+
 
 /**
  * @param {Request} request
@@ -130,9 +164,6 @@ async function aiTestResponse(request: Request, params: Record<string, string>, 
  */
 type RouteHandler = (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>;
 const routes: Record<string, (request: Request, params?: Record<string, string>, env?: Env) => Response | Promise<Response>> = {
-	// AI Testing
-    "GET /ai-test": (request, params = {}, env) => env ? aiTestResponse(request, params, env) : new Response("Environment not defined", { status: 500 }),
-
     // Sign-in, Sign-up, Forgot-Password, VerifyCredentials, Update Account
     "POST /sign-in": (request, params = {}, env) => env ? signIn(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "POST /sign-up": (request, params = {}, env) => env ? signUp(request, params, env) : new Response("Environment not defined", { status: 500 }),
@@ -168,6 +199,8 @@ const routes: Record<string, (request: Request, params?: Record<string, string>,
     "POST /a/categories/:categoryId": (request, params = {}, env) => env ? createForum(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "PUT /a/categories/:categoryId": (request, params = {}, env) => env ? updateCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
     "DELETE /a/categories/:categoryId": (request, params = {}, env) => env ? deleteCategoryById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "PUT /a/forums/:forumId": (request, params = {}, env) => env ? updateForumById(request, params, env) : new Response("Environment not defined", { status: 500 }),
+    "DELETE /a/forums/:forumId": (request, params = {}, env) => env ? deleteForumById(request, params, env) : new Response("Environment not defined", { status: 500 }),
 
     // Moderator Actions
     "GET /moderator/queue": (request, params = {}, env) => env ? getMmoderationQueue(request, params, env) : new Response("Environment not defined", { status: 500 }),
